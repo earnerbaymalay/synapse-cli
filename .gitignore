@@ -1,0 +1,24 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Archives & Large blobs
+*.tar.gz
+*.iso
+*.img
+
+# Captures & sensitive logs
+*.pcap
+*.pcapng
+*.cap
+.trilium-env
+lab-ap-credentials.txt
+
+# Session caches
+.cache/
+.session/
