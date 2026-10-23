@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Ollama: dolphin-mistral
+Comment=Run dolphin-mistral locally
+Exec=bash -c 'cd ~/Desktop/AI\ CLI\ WORK && ollama run dolphin-mistral; exec bash'
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Development;AI;

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Hermes2 (Ollama)
+Comment=Nous Hermes 2 - Conversational AI
+Exec=bash -c 'cd ~/Desktop/AI\ CLI\ WORK && ollama run nous-hermes2; exec bash'
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Development;AI;

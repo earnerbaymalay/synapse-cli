@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Antigravity (AI CLI Work)
+Comment=AGY CLI from AI CLI Work folder
+Exec=bash -c 'cd ~/Desktop/AI\ CLI\ WORK && agy'
+Icon=/home/ebaymlay/.local/share/icons/hicolor/scalable/apps/antigravity.svg
+Terminal=true
+Type=Application
+Categories=Development;AI;

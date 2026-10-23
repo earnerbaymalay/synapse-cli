@@ -25,17 +25,20 @@ echo "  ask-dolphin \"prompt\"   → Dolphin Mistral (uncensored instruction-tun
 echo "  ask-hermes \"prompt\"    → Nous Hermes 2 (conversational, low refusal)"
 echo "  ask-ab \"prompt\"        → Qwen Abliterated"
 echo "  ollama ps              → View currently loaded models and RAM usage"
+echo "  ollama-stop [model]    → Free RAM (unloads specified model or all models)"
 echo ""
 
 echo "🛠️  AI CLI Assistants (Shared MCP Context):"
-echo "  claude          → Claude Code (CLAUDE.md | MCP: fetch, memory, sequential-thinking)"
-echo "  agy             → Antigravity / Gemini (GEMINI.md | MCP: fetch, memory, sequential-thinking)"
+echo "  claude          → Claude Code (CLAUDE.md | MCP: fetch, memory, sequential-thinking, filesystem)"
+echo "  agy             → Antigravity / Gemini (GEMINI.md | MCP: fetch, memory, sequential-thinking, filesystem)"
 echo ""
 
 echo "⚡ Modern Dev & Shell Shortcuts:"
 echo "  lg              → lazygit (Git TUI)"
 echo "  clip / clippaste→ clipboard copy/paste (xclip)"
-echo "  venv / activate → instant uv-powered Python environment"
+echo "  venv / activate → instant uv-powered Python environment (with ollama SDK)"
+echo "  trilium-bridge  → CLI ETAPI note manager"
+echo "  trilium-ask     → ask Ollama and save response directly to Trilium note"
 echo "  aiwork          → return to ~/Desktop/AI CLI WORK"
 echo ""
 

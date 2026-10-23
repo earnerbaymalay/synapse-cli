@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Ollama: llama3.2
+Comment=Run llama3.2 locally
+Exec=bash -c 'cd ~/Desktop/AI\ CLI\ WORK && ollama run llama3.2; exec bash'
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Development;AI;

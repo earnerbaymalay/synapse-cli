@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Ollama - Qwen Coder
+Comment=Run Qwen 2.5 Coder locally via Ollama
+Exec=bash -c 'cd ~/Desktop/AI\ CLI\ WORK && ollama run qwen2.5-coder; exec bash'
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Development;AI;

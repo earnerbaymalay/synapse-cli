@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Claude Code
+Comment=Anthropic Claude Code CLI
+Exec=bash -c 'cd ~/Desktop/AI\ CLI\ WORK && claude'
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Development;AI;
