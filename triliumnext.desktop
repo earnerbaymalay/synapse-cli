@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Trilium Notes
+Comment=Build your personal knowledge base with Trilium Notes
+GenericName=triliumnext
+Keywords=Trillium;
+Exec=env TRILIUM_PORT=8080 triliumnext %U
+Icon=triliumnext
+Type=Application
+StartupNotify=true
+StartupWMClass=triliumnext
+Categories=Office;Utility;
