@@ -7,8 +7,9 @@ You are working in the primary AI CLI Work directory (`~/Desktop/AI CLI WORK`).
 - **Network Privacy**:
   - Full MAC Address Randomization is mandatory: active on scanning (`wifi.scan-rand-mac-address=yes`) and per-connection session (`wifi.cloned-mac-address=random`). The physical hardware MAC (`b4:69:21:fa:71:d4`) must never be broadcast or leaked.
   - IPv6 Privacy: RFC 4941 Privacy Extensions enabled and preferred (`ipv6.ip6-privacy=2`).
-  - DNS: Secure Quad9 resolver (`9.9.9.9`, `149.112.112.112`) with malware/tracking filtering.
+  - DNS: Secure Quad9 resolver (`9.9.9.9`, `149.112.112.112`) with DNS-over-TLS (DoT) via `systemd-resolved` (port 853, TLS encryption, no ISP snooping).
   - Connection Priorities: Home Wi-Fi (`WIFI-9PQJ9RF`, WPA3-SAE) is Top Priority (`100`); Hotspot (`Nothing Phone (4a)_6383`) is Secondary Priority (`50`).
+  - Network Stealth: Incoming connections dropped by default in firewalld, ICMP echo-requests ignored, mDNS/Avahi broadcast disabled.
 
 ## System Architecture & Assistant Context
 - **Machine**: Dell Latitude 7490 (Intel Core i5-8350U, 4c/8t, 24 GB DDR4, 8 GB ZRAM, 512 GB SATA SSD).

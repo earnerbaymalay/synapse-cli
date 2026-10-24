@@ -73,10 +73,10 @@ check_pattern() {
 
 check_pattern "AWS Access Key ID" 'AKIA[0-9A-Z]{16}'
 check_pattern "GitHub Personal Access Token" '(ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82})'
-check_pattern "Private Cryptographic Key" '-----BEGIN (RSA |EC |DSA |OPENSSH |)PRIVATE KEY-----'
+check_pattern "Private Cryptographic Key" '-----BEGIN (RSA |EC |DSA |OPENSSH |ENCRYPTED |)PRIVATE KEY-----'
 check_pattern "OpenAI / Anthropic API Key" '(sk-[a-zA-Z0-9]{32,}|sk-ant-[a-zA-Z0-9]{32,})'
 check_pattern "Slack Token" 'xox[baprs]-[0-9a-zA-Z]{10,48}'
-check_pattern "Generic High-Entropy Secret/Password" '(api[_-]?key|secret[_-]?key|client[_-]?secret|auth[_-]?token|passwd|password)[[:space:]]*[:=][[:space:]]*["'\''][^"'\'']{10,}["'\'']' -i
+check_pattern "Generic High-Entropy Secret/Password" '(api[_-]?key|secret[_-]?key|client[_-]?secret|auth[_-]?token|passwd|password)[[:space:]]*[:=][[:space:]]*(("[^"]{8,}")|('\''[^'\'']{8,}'\'')|([a-zA-Z0-9_\-]{16,}))' -i
 
 if [ ${#VIOLATIONS[@]} -gt 0 ]; then
     echo ""
@@ -122,7 +122,7 @@ EOF
     RESPONSE=$(curl -s --max-time 8 "${OLLAMA_HOST}/api/generate" \
         -d "$(jq -n --arg m "$MODEL" --arg p "$PROMPT" '{model: $m, prompt: $p, stream: false}')" 2>/dev/null | jq -r '.response' 2>/dev/null || true)
 
-    if echo "${RESPONSE}" | grep -q "^FAIL:"; then
+    if echo "${RESPONSE}" | grep -i -q -E "(^|[[:space:]]|\*)FAIL:"; then
         echo ""
         log_fail "${BOLD}Local AI Security Audit Flagged Vulnerability!${RESET}"
         printf "${RED}%s${RESET}\n" "${RESPONSE}"

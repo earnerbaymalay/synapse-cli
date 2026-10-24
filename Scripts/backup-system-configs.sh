@@ -11,7 +11,7 @@ BACKUP_DIR="${BACKUP_DIR:-$HOME/Backups/system-configs}"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ARCHIVE_NAME="system-configs-backup-${TIMESTAMP}.tar.gz"
 TARGET_ARCHIVE="${BACKUP_DIR}/${ARCHIVE_NAME}"
-MANIFEST_FILE="${BACKUP_DIR}/manifest-${TIMESTAMP}.txt"
+MANIFEST_FILE="${BACKUP_DIR}/system-configs-backup-${TIMESTAMP}.manifest.txt"
 
 mkdir -p "${BACKUP_DIR}"
 
@@ -96,10 +96,17 @@ sha256sum "${TARGET_ARCHIVE}" > "${TARGET_ARCHIVE}.sha256"
     done
 } > "${MANIFEST_FILE}"
 
-# Keep only the last 5 backups to prevent disk bloat
+# Keep only the last 5 backup sets (archive, sha256, and manifest)
 log "Pruning old backups (retaining newest 5)..."
-find "${BACKUP_DIR}" -name "system-configs-backup-*.tar.gz*" -type f -printf '%T+ %p\n' | \
-    sort -r | tail -n +11 | cut -d' ' -f2- | xargs -r rm -f
+find "${BACKUP_DIR}" -name "system-configs-backup-*.tar.gz" -type f -printf '%T+ %f\n' | \
+    sort -r | tail -n +6 | cut -d' ' -f2- | while read -r archive_file; do
+        [ -n "$archive_file" ] || continue
+        ts=$(echo "$archive_file" | sed -E 's/system-configs-backup-([0-9_]+)\.tar\.gz/\1/')
+        rm -f "${BACKUP_DIR}/system-configs-backup-${ts}.tar.gz" \
+              "${BACKUP_DIR}/system-configs-backup-${ts}.tar.gz.sha256" \
+              "${BACKUP_DIR}/system-configs-backup-${ts}.manifest.txt" \
+              "${BACKUP_DIR}/manifest-${ts}.txt"
+done
 
 BACKUP_SIZE=$(du -h "${TARGET_ARCHIVE}" | cut -f1)
 success "Backup completed successfully!"

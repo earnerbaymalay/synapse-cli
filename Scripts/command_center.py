@@ -328,7 +328,7 @@ def render_dashboard() -> Layout:
 
     # Footer
     footer_text = Text(
-        "Shortcuts: [P] Quick Prompt | [W] Warm Code Model | [F] Flush RAM | [R] Refresh | [Q] Exit",
+        "Live Controls: [W] Warm Code Model | [F] Flush RAM | [R] Refresh | [Q] Exit (or Ctrl+C)",
         style="bold white on dark_blue",
         justify="center",
     )
@@ -357,22 +357,62 @@ def prompt_model(model: str, prompt: str) -> None:
         console.print(f"[bold red]Failed to query Ollama:[/] {e}")
 
 
-def warm_model() -> None:
-    """Preload code model into RAM."""
-    console.print("[bold cyan]Warming up qwen2.5-coder:latest into RAM...[/]")
-    subprocess.run(["ask-qwen", "Warm up: respond with ready"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    console.print("[bold green]Model loaded and warm in RAM![/]")
+def warm_model(model: str = "qwen2.5-coder:latest") -> None:
+    """Preload code model into RAM via native Ollama API."""
+    console.print(f"[bold cyan]Warming up {model} into RAM...[/]")
+    try:
+        with httpx.Client(base_url=OLLAMA_BASE_URL, timeout=30.0) as client:
+            res = client.post("/api/generate", json={"model": model, "keep_alive": "24h"})
+            if res.status_code == 200:
+                console.print(f"[bold green]Model '{model}' loaded and warm in RAM![/]")
+            else:
+                console.print(f"[bold red]Ollama API returned HTTP {res.status_code}[/]")
+    except Exception as e:
+        console.print(f"[bold red]Failed to warm model:[/] {e}")
 
 
 def flush_models() -> None:
-    """Unload all resident models to free memory."""
+    """Unload all resident models to free memory via native Ollama API."""
     console.print("[bold yellow]Flushing resident models from RAM...[/]")
     ai = get_ollama_status()
-    for m in ai.get("resident", []):
-        name = m.get("name", "")
-        if name:
-            subprocess.run(["curl", "-s", f"{OLLAMA_BASE_URL}/api/generate", "-d", f'{{"model": "{name}", "keep_alive": 0}}'], stdout=subprocess.DEVNULL)
-    console.print("[bold green]RAM flushed![/]")
+    resident = ai.get("resident", [])
+    if not resident:
+        console.print("[bold green]RAM already clear (no models loaded).[/]")
+        return
+    try:
+        with httpx.Client(base_url=OLLAMA_BASE_URL, timeout=10.0) as client:
+            for m in resident:
+                name = m.get("name", "")
+                if name:
+                    client.post("/api/generate", json={"model": name, "keep_alive": 0})
+        console.print("[bold green]RAM flushed successfully![/]")
+    except Exception as e:
+        console.print(f"[bold red]Failed to flush models:[/] {e}")
+
+
+def get_keypress(timeout: float = 1.0) -> Optional[str]:
+    """Check for single keypress without blocking in terminal mode."""
+    if not sys.stdin.isatty():
+        time.sleep(timeout)
+        return None
+    try:
+        import select
+        import termios
+        import tty
+
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            rlist, _, _ = select.select([sys.stdin], [], [], timeout)
+            if rlist:
+                return sys.stdin.read(1)
+            return None
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    except Exception:
+        time.sleep(timeout)
+        return None
 
 
 def main() -> None:
@@ -395,7 +435,7 @@ def main() -> None:
         return
 
     if args.warm:
-        warm_model()
+        warm_model(args.model)
         return
 
     if args.flush:
@@ -408,9 +448,19 @@ def main() -> None:
 
     if args.watch:
         try:
-            with Live(render_dashboard(), refresh_per_second=1, screen=True) as live:
+            with Live(render_dashboard(), refresh_per_second=4, screen=True) as live:
                 while True:
-                    time.sleep(1)
+                    key = get_keypress(1.0)
+                    if key:
+                        ch = key.lower()
+                        if ch == "q":
+                            break
+                        elif ch == "w":
+                            warm_model(args.model)
+                            time.sleep(0.5)
+                        elif ch == "f":
+                            flush_models()
+                            time.sleep(0.5)
                     live.update(render_dashboard())
         except KeyboardInterrupt:
             return
