@@ -2,7 +2,24 @@
 
 This workspace is the primary environment for AI agent orchestration, development, and network analysis.
 
-## Core Guidelines
+## Prime Directive: Security & Anonymity First
+- **Core Stance**: **Always prioritise security & anonymity** across all system modifications, configurations, networking, scripting, and development choices.
+- **Network Privacy**:
+  - Full MAC Address Randomization is mandatory: active on scanning (`wifi.scan-rand-mac-address=yes`) and per-connection session (`wifi.cloned-mac-address=random`). The physical hardware MAC (`b4:69:21:fa:71:d4`) must never be broadcast or leaked.
+  - IPv6 Privacy: RFC 4941 Privacy Extensions enabled and preferred (`ipv6.ip6-privacy=2`).
+  - DNS: Secure Quad9 resolver (`9.9.9.9`, `149.112.112.112`) with DNS-over-TLS (DoT) via `systemd-resolved` (port 853, TLS encryption, no ISP snooping).
+  - Connection Priorities: Home Wi-Fi (`WIFI-9PQJ9RF`, WPA3-SAE) is Top Priority (`100`); Hotspot (`Nothing Phone (4a)_6383`) is Secondary Priority (`50`).
+  - Network Stealth: Incoming connections dropped by default in firewalld, ICMP echo-requests ignored, mDNS/Avahi broadcast disabled.
+
+## System Architecture & Assistant Context
+- **Machine**: Dell Latitude 7490 (Intel Core i5-8350U, 4c/8t, 24 GB DDR4, 8 GB ZRAM, 512 GB SATA SSD).
+- **OS**: EndeavourOS Linux (Arch rolling, 64-bit).
+- **Desktop Environment**: XFCE 4.20 (xfwm4 `Catppuccin-Mauve-Dark` theme, GTK `catppuccin-mocha-mauve-standard+default`, `Hatter-Purple` & Papirus icons).
+- **Display**: Primary `eDP-1` (1920x1080@60.05Hz, landscape normal) enforced at Xorg modesetting, SDDM Xsetup, and XFCE levels.
+- **Application Launcher**: macOS Launchpad-style `xfce-panel-launcher` bound to standalone Super (Windows) key via `xcape` (`/usr/local/bin/xfce-launcher-toggle`).
+- **EndeavourOS Assistant Skill**: Activated via `.agents/skills/endeavouros-assistant/SKILL.md` for all system modifications and coding.
+
+## Core Guidelines & Architecture
 - **Project Structure**: Keep projects modularized into subdirectories within `~/Desktop/AI CLI WORK/`.
 - **Python Tooling**: Use `uv` (`uv venv`, `uv pip`, `uv run`) for rapid, isolated environments.
 - **Model Context Protocol (MCP)**:
@@ -15,15 +32,19 @@ This workspace is the primary environment for AI agent orchestration, developmen
   - Active models: `qwen2.5-coder:latest`, `llama3.2:latest`, `dolphin-mistral:latest`, `nous-hermes2:latest`, `qwen-abliterated:latest`.
   - Shell helpers (supports stdin piping & options): `ask-qwen`, `ask-llama`, `ask-dolphin`, `ask-hermes`, `ask-ab`, `ask-ollama [-m model] [prompt]`.
   - State monitoring & management: `ollama ps` checks resident RAM usage; `ollama-stop [model]` or `ollama-flush` unloads models to free RAM; `ollama-warm` pre-loads the code model.
+  - TUI Chat: `oterm` for interactive terminal sessions.
 - **Central AI Knowledge Base (Obsidian)**:
   - Markdown repository at `~/Obsidian/AI-Knowledge-Base` (`OBSIDIAN_AI_VAULT`).
   - High-signal retention policy: conversational filler is discarded; only distilled decisions, verified solutions, workflows, and insights are archived.
   - Shell commands: `ai-log [note]`, `ai-kb add --category [decisions|insights|solutions|workflows|daily]`, `ai-kb distill [text/pipe]`, `ai-kb ask [prompt]`, `ai-kb search [query]`, and `ai-kb open`.
 - **Networking & Pentesting**:
-  - `wlan0` is unmanaged and dedicated for RF monitoring/packet capture (`bettercap`, `wavescope`, `tshark`).
+  - `wlan0` is dedicated for RF monitoring/packet capture (`bettercap`, `wavescope`, `tshark`).
   - Ethernet (`enp0s31f6`) is the primary network link with Quad9 DNS.
   - Do not alter network interfaces without explicit instructions.
-- **Shell & Tools**:
-  - Modern CLI utilities: `bat` (cat), `eza` (ls), `ripgrep` (`rg`), `fd`, `jq`, and `lazygit` (`lg`).
+- **Tooling & Daemons**:
+  - `ananicy-cpp`: Auto-nice process prioritization for buttery smooth UI responsiveness under heavy loads.
+  - `throttled`: Overrides Dell EC thermal throttling to maintain boost frequencies.
+  - `nohang`: User-space low-memory / OOM prevention daemon.
+  - Modern CLI utilities: `bat` (cat), `eza` (ls), `ripgrep` (`rg`), `fd`, `jq`, `delta`, `duf`, and `lazygit` (`lg`).
   - Python: `venv` function auto-activates existing `.venv` (with `ollama` SDK installed) or creates a new one via `uv`.
   - Clipboard: `clip` (`xclip -selection clipboard`) and `clippaste`.

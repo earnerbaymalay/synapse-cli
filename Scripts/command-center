@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Wrapper launcher for Terminal Command Center using workspace virtual environment
+set -euo pipefail
+
+WORKSPACE_DIR="/home/ebaymlay/Desktop/AI CLI WORK"
+VENV_PYTHON="${WORKSPACE_DIR}/.venv/bin/python"
+
+if [ ! -f "${VENV_PYTHON}" ]; then
+    VENV_PYTHON="python3"
+fi
+
+exec "${VENV_PYTHON}" "${WORKSPACE_DIR}/Scripts/command_center.py" "$@"
