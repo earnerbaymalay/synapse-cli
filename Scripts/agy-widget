@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""
+agy-widget - Antigravity CLI & System Command Widget
+Displays live system security/LLM status badges and categorized CLI command references.
+"""
+
+import sys
+import os
+import json
+import shutil
+import urllib.request
+import subprocess
+import argparse
+
+# Catppuccin Mocha Palette (ANSI 24-bit Truecolor)
+MAUVE   = "\033[38;2;203;166;247m"
+LAVENDER= "\033[38;2;180;190;254m"
+SAPPHIRE= "\033[38;2;116;199;236m"
+BLUE    = "\033[38;2;137;180;250m"
+TEAL    = "\033[38;2;148;226;213m"
+GREEN   = "\033[38;2;166;227;161m"
+PEACH   = "\033[38;2;250;179;135m"
+YELLOW  = "\033[38;2;249;226;175m"
+RED     = "\033[38;2;243;139;168m"
+TEXT    = "\033[38;2;205;214;244m"
+SUBTEXT = "\033[38;2;166;173;200m"
+DIM     = "\033[38;2;108;112;134m"
+BOLD    = "\033[1m"
+RESET   = "\033[0m"
+
+COMMAND_CATEGORIES = [
+    {
+        "category": "🤖 AI Agents & Local LLMs",
+        "color": MAUVE,
+        "items": [
+            ("agy", "Antigravity CLI (Gemini 2.5 context + MCP)"),
+            ("claude", "Claude Code assistant (CLAUDE.md context)"),
+            ("oterm", "Interactive Terminal Chat TUI (multi-turn)"),
+            ("? \"<prompt>\"", "Instant Qwen 2.5 Coder query (supports pipe)"),
+            ("ask-qwen \"prompt\"", "Targeted Qwen 2.5 Coder (code specialist)"),
+            ("ask-llama | ask-ab", "Targeted LLaMA 3.2 or Qwen-Abliterated"),
+            ("ai status | warm | flush", "AI daemon lifecycle & resident RAM control"),
+            ("ai work", "Jump to workspace & auto-activate venv"),
+        ]
+    },
+    {
+        "category": "🛡️ Security, Privacy & Network",
+        "color": GREEN,
+        "items": [
+            ("cc (or command-center)", "Full live TUI telemetry dashboard (cc -w)"),
+            ("sec-status", "Live MAC randomization, DoT & stealth check"),
+            ("sec-audit", "Pre-commit secret audit & port scanner"),
+            ("sys-backup", "Full config snapshot to ~/Backups (keep 5)"),
+            ("wifi-home | wifi-hotspot", "Prioritized Wi-Fi connection control"),
+        ]
+    },
+    {
+        "category": "⚡ Hardware, Thermals & Daemons",
+        "color": YELLOW,
+        "items": [
+            ("throttled-status", "Dell 7490 thermal override (25W sustained PL1)"),
+            ("ananicy-status", "CachyOS auto-nice process responsiveness"),
+            ("oom-status", "Nohang low-memory freeze protector"),
+        ]
+    },
+    {
+        "category": "🛠️ Development & Pentesting",
+        "color": SAPPHIRE,
+        "items": [
+            ("lg", "Lazygit TUI with Catppuccin Delta diff pager"),
+            ("venv", "Smart virtualenv manager (uv isolated env)"),
+            ("clip | clippaste", "Fast system clipboard copy & paste"),
+            ("mitm-harvest", "Mitmproxy credential & token harvester"),
+            ("scope-cap", "BPF-filtered Wi-Fi packet capture"),
+        ]
+    },
+    {
+        "category": "🎨 Desktop, Theming & Knowledge",
+        "color": PEACH,
+        "items": [
+            ("Super Key", "macOS-style XFCE Launchpad (toggle)"),
+            ("font-tune", "Typography, hinting & subpixel tuner"),
+            ("set-wallpaper", "4K wallpaper selector & desktop background"),
+            ("ai-log \"note\"", "Quick trimmed note to Obsidian Daily Digest"),
+            ("ai-kb search \"query\"", "Fast ripgrep search in AI Knowledge Base"),
+            ("ai-notes", "Open Obsidian AI Knowledge Base vault"),
+            ("agy-menu", "GUI searchable command launcher (Rofi)"),
+        ]
+    }
+]
+
+def get_telemetry():
+    # 1. MAC status
+    try:
+        with open("/sys/class/net/wlan0/address") as f:
+            mac = f.read().strip()
+        is_rand = (mac.lower() != "b4:69:21:fa:71:d4")
+        mac_badge = f"{GREEN}🔒 {mac[:8]}.. (Rand){RESET}" if is_rand else f"{RED}⚠️ {mac} (HW Leaked!){RESET}"
+    except Exception:
+        mac_badge = f"{DIM}🔒 wlan0 (N/A){RESET}"
+
+    # 2. DNS-over-TLS
+    try:
+        res = subprocess.run(["resolvectl", "status", "wlan0"], capture_output=True, text=True, timeout=0.15)
+        if "+DNSOverTLS" in res.stdout and "9.9.9.9" in res.stdout:
+            dot_badge = f"{GREEN}🛡️ Quad9 DoT:853{RESET}"
+        else:
+            dot_badge = f"{YELLOW}🛡️ Plain DNS{RESET}"
+    except Exception:
+        dot_badge = f"{DIM}🛡️ DoT (N/A){RESET}"
+
+    # 3. ICMP Stealth
+    try:
+        with open("/proc/sys/net/ipv4/icmp_echo_ignore_all") as f:
+            icmp = f.read().strip()
+        stealth_badge = f"{GREEN}🔥 Drop Stealth{RESET}" if icmp == "1" else f"{YELLOW}🔥 Pingable{RESET}"
+    except Exception:
+        stealth_badge = f"{DIM}🔥 Firewall{RESET}"
+
+    # 4. Throttled CPU
+    try:
+        res = subprocess.run(["systemctl", "is-active", "throttled"], capture_output=True, text=True, timeout=0.1)
+        throttled_badge = f"{SAPPHIRE}⚡ 25W Boost{RESET}" if "active" in res.stdout else f"{DIM}⚡ CPU Standard{RESET}"
+    except Exception:
+        throttled_badge = f"{DIM}⚡ CPU{RESET}"
+
+    # 5. Ollama Status
+    try:
+        req = urllib.request.urlopen("http://127.0.0.1:11434/api/ps", timeout=0.12)
+        data = json.loads(req.read().decode())
+        models = [m.get("name", "").split(":")[0] for m in data.get("models", [])]
+        if models:
+            ollama_badge = f"{MAUVE}🧠 {models[0]} (Warm){RESET}"
+        else:
+            ollama_badge = f"{YELLOW}🧠 Ollama (Standby){RESET}"
+    except Exception:
+        ollama_badge = f"{RED}🧠 Ollama (Off){RESET}"
+
+    return [mac_badge, dot_badge, stealth_badge, throttled_badge, ollama_badge]
+
+
+def print_banner():
+    badges = get_telemetry()
+    badge_str = f" {DIM}│{RESET} ".join(badges)
+    
+    print(f"{MAUVE}╭─ 🤖 AI CLI Workstation & Antigravity Suite ────────────────────────────────────────╮{RESET}")
+    print(f"{MAUVE}│{RESET} {badge_str} {MAUVE}│{RESET}")
+    print(f"{MAUVE}├────────────────────────────────────────────────────────────────────────────────────┤{RESET}")
+    print(f"{MAUVE}│{RESET} {BOLD}{SAPPHIRE}Agents:{RESET} {MAUVE}agy{RESET} · {BLUE}claude{RESET} · {TEAL}oterm{RESET}  {DIM}│{RESET} {BOLD}{SAPPHIRE}Query:{RESET} {YELLOW}? \"prompt\"{RESET} · {YELLOW}ask-qwen{RESET} · {YELLOW}ai{RESET}           {MAUVE}│{RESET}")
+    print(f"{MAUVE}│{RESET} {BOLD}{SAPPHIRE}Tools:{RESET}  {GREEN}cc{RESET} (dashboard) · {GREEN}sec-status{RESET} · {GREEN}sys-backup{RESET} · {PEACH}lg{RESET} · {PEACH}venv{RESET} · {MAUVE}agy-menu{RESET} (Rofi)   {MAUVE}│{RESET}")
+    print(f"{MAUVE}╰─ {SUBTEXT}Type {BOLD}{MAUVE}agy-cmd{RESET}{SUBTEXT} or {BOLD}{MAUVE}ai help{RESET}{SUBTEXT} for complete categorized command cheat-sheet ──────╯{RESET}")
+
+
+def print_full():
+    badges = get_telemetry()
+    badge_str = f" {DIM}│{RESET} ".join(badges)
+    term_width = min(shutil.get_terminal_size((92, 24)).columns, 100)
+    term_width = max(term_width, 88)
+    line_inner = term_width - 2
+
+    header = "🌌 ANTIGRAVITY WORKSPACE & SYSTEM COMMAND REFERENCE"
+    print(f"{MAUVE}╔{'═' * line_inner}╗{RESET}")
+    print(f"{MAUVE}║{RESET}{BOLD}{MAUVE}{header.center(line_inner)}{RESET}{MAUVE}║{RESET}")
+    print(f"{MAUVE}║{RESET}{' ' * ((line_inner - 74)//2)}{badge_str}{' ' * ((line_inner - 74 + 1)//2)}{MAUVE}║{RESET}")
+    print(f"{MAUVE}╠{'═' * line_inner}╣{RESET}")
+
+    for cat in COMMAND_CATEGORIES:
+        print(f"{MAUVE}║{RESET}  {BOLD}{cat['color']}{cat['category']}{RESET}{' ' * (line_inner - len(cat['category']) - 4)}{MAUVE}║{RESET}")
+        for cmd, desc in cat["items"]:
+            cmd_fmt = f"{BOLD}{SAPPHIRE}{cmd:<24}{RESET}"
+            desc_fmt = f"{TEXT}{desc}{RESET}"
+            # Calculate visible width
+            visible_len = 24 + len(desc) + 4
+            padding = max(0, line_inner - visible_len)
+            print(f"{MAUVE}║{RESET}    {cmd_fmt} {desc_fmt}{' ' * padding}{MAUVE}║{RESET}")
+        print(f"{MAUVE}║{' ' * line_inner}║{RESET}")
+
+    footer_hint = "Run 'command-center -w' for live metrics | 'agy-menu' for GUI picker"
+    print(f"{MAUVE}╠{'═' * line_inner}╣{RESET}")
+    print(f"{MAUVE}║{RESET}{SUBTEXT}{footer_hint.center(line_inner)}{RESET}{MAUVE}║{RESET}")
+    print(f"{MAUVE}╚{'═' * line_inner}╝{RESET}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Antigravity Command & Telemetry Widget")
+    parser.add_argument("-b", "--banner", action="store_true", help="Print compact shell startup banner")
+    parser.add_argument("-f", "--full", action="store_true", help="Print full categorized command reference")
+    parser.add_argument("-j", "--json", action="store_true", help="Output telemetry as JSON")
+    args = parser.parse_args()
+
+    if args.json:
+        # Telemetry JSON
+        data = {
+            "categories": COMMAND_CATEGORIES
+        }
+        print(json.dumps(data, indent=2))
+    elif args.banner:
+        print_banner()
+    else:
+        print_full()
+
+
+if __name__ == "__main__":
+    main()
