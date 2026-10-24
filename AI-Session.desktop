@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=🤖 AI CLI Session
-Comment=Start AI work session with Trilium context
-Exec=bash -c 'cd ~/Desktop/AI\ CLI\ WORK && bash start-ai-session.sh; exec bash'
+Comment=Start AI work session with Obsidian Knowledge Base context
+Exec=bash -c '/home/ebaymlay/Desktop/AI\ CLI\ WORK/start-ai-session.sh'
 Icon=utilities-terminal
 Terminal=true
 Type=Application

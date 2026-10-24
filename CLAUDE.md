@@ -15,9 +15,10 @@ This workspace is the primary environment for AI agent orchestration, developmen
   - Active models: `qwen2.5-coder:latest`, `llama3.2:latest`, `dolphin-mistral:latest`, `nous-hermes2:latest`, `qwen-abliterated:latest`.
   - Shell helpers (supports stdin piping & options): `ask-qwen`, `ask-llama`, `ask-dolphin`, `ask-hermes`, `ask-ab`, `ask-ollama [-m model] [prompt]`.
   - State monitoring & management: `ollama ps` checks resident RAM usage; `ollama-stop [model]` or `ollama-flush` unloads models to free RAM; `ollama-warm` pre-loads the code model.
-- **Trilium Notes Integration**:
-  - ETAPI bridge available at `trilium-ai/trilium_bridge.py` and `trilium-ai/ai_to_trilium.sh` on `http://localhost:8080` (`TRILIUM_PORT=8080`).
-  - Shell commands: `trilium-bridge [search|get|create|append|info]` and `trilium-ask [prompt]`.
+- **Central AI Knowledge Base (Obsidian)**:
+  - Markdown repository at `~/Obsidian/AI-Knowledge-Base` (`OBSIDIAN_AI_VAULT`).
+  - High-signal retention policy: conversational filler is discarded; only distilled decisions, verified solutions, workflows, and insights are archived.
+  - Shell commands: `ai-log [note]`, `ai-kb add --category [decisions|insights|solutions|workflows|daily]`, `ai-kb distill [text/pipe]`, `ai-kb ask [prompt]`, `ai-kb search [query]`, and `ai-kb open`.
 - **Networking & Pentesting**:
   - `wlan0` is unmanaged and dedicated for RF monitoring/packet capture (`bettercap`, `wavescope`, `tshark`).
   - Ethernet (`enp0s31f6`) is the primary network link with Quad9 DNS.

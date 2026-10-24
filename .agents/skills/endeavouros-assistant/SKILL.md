@@ -1,0 +1,117 @@
+---
+name: endeavouros-assistant
+description: >-
+  Auto-invoke whenever the user is coding, modifying, configuring, debugging, or tweaking their EndeavourOS Arch Linux system, local services, packages, hardware, desktop environment, or dev tooling. Contains comprehensive architectural knowledge of this Dell Latitude 7490 setup, local LLM Ollama configurations, power/thermal management, XFCE desktop, and network posture.
+---
+
+# EndeavourOS Assistant & System Architecture
+
+This skill provides comprehensive architectural context and guidelines for working on this machine (`ebaymlay7490`).
+
+---
+
+## 1. Hardware & System Architecture
+
+| Component | Specification & Details |
+| :--- | :--- |
+| **Model** | Dell Latitude 7490 |
+| **CPU** | Intel Core i5-8350U (4 physical cores, 8 threads, Kaby Lake-R, up to 3.6 GHz) |
+| **GPU** | Intel UHD Graphics 620 (Mesa / Vulkan / VA-API acceleration) |
+| **RAM** | 24 GB DDR4 (16 GB + 8 GB dual-channel) |
+| **Swap / ZRAM** | 8 GB ZRAM (`/dev/zram0`) compressed with `zstd`. Optimal sysctl: `vm.swappiness = 180`, `vm.page-cluster = 0`, `vm.vfs_cache_pressure = 50` |
+| **Storage** | 512 GB SATA SSD (`/dev/sda2` ext4 root mounted with `noatime`, TRIM via `fstrim.timer`) |
+| **OS** | EndeavourOS Linux (Arch Linux rolling, 64-bit) |
+| **Audio** | PipeWire with WirePlumber & PulseAudio compatibility layer |
+| **Power & Thermals** | TLP active; `throttled` daemon overrides Dell EC limits to sustain 25W PL1 under load; `intel-undervolt` for lower thermals |
+
+---
+
+## 2. Desktop Environment (XFCE 4.20)
+
+* **Window Manager (`xfwm4`)**:
+  * Theme: `Catppuccin-Mauve-Dark` with native titlebar pixmaps and min/max/close circular buttons.
+  * Switch command: `xfconf-query -c xfwm4 -p /general/theme -s Catppuccin-Mauve-Dark`
+* **GTK / Widget Theme**:
+  * Theme: `catppuccin-mocha-mauve-standard+default`
+* **Icon Themes**:
+  * `Hatter`, `Hatter-Purple` (installed in `~/.local/share/icons/`)
+  * `Papirus-Dark` with Catppuccin Mocha Mauve folder icons (`papirus-folders -C cat-mocha-mauve --theme Papirus-Dark`)
+* **Application Launcher**:
+  * Fullscreen macOS Launchpad-style launcher (`xfce-panel-launcher` plugin-1).
+  * Toggle script: `/usr/local/bin/xfce-launcher-toggle`
+  * **Super (Windows) Key**: `xcape -e 'Super_L=Alt_L|F1'` autostarts via `~/.config/autostart/xcape.desktop`. Tapping the Windows key toggles the launcher; combo keys (`Super+E`, `Super+Return`, etc.) remain unaffected.
+* **Compositor**: Xfwm4 compositing enabled / Picom available.
+
+---
+
+## 3. Terminal & Shell Productivity
+
+* **Terminal Emulator**: Kitty with JetBrainsMono Nerd Font (`~/.config/kitty/kitty.conf`).
+* **Shell**: Bash with `ble.sh` (syntax highlighting & autosuggestions), Starship prompt, `zoxide` (smart `cd`), and `fzf` fuzzy finder.
+* **Modern CLI Aliases**:
+  * `cat` -> `bat --style=plain`
+  * `ls` -> `eza --icons=always --color=always`
+  * `ll` -> `eza -la --icons=always --color=always`
+  * `lg` -> `lazygit`
+  * `clip` / `clippaste` -> `xclip -selection clipboard`
+  * `delta` -> Syntax-highlighted git diff pager
+  * `duf` -> Modern disk usage analyzer
+* **Python Workflow**:
+  * Always prefer `uv` (`uv venv`, `uv pip`, `uv run`) for rapid, isolated environments.
+  * Dedicated virtualenv: `/home/ebaymlay/Desktop/AI CLI WORK/.venv`.
+
+---
+
+## 4. Local AI Engine (Ollama)
+
+* **Daemon**: `ollama.service` running on `http://127.0.0.1:11434`.
+* **Systemd Overrides** (`/etc/systemd/system/ollama.service.d/override.conf`):
+  * `OLLAMA_KEEP_ALIVE=24h`
+  * `OLLAMA_NUM_PARALLEL=1`
+  * `OLLAMA_ORIGINS=*`
+* **Inference Optimization**:
+  * On this 4-core / 8-thread CPU, running CPU inference constrained to physical cores (4 threads) avoids cache thrashing and yields higher token rates.
+* **Installed Models**: `qwen2.5-coder:latest`, `llama3.2:latest`, `dolphin-mistral:latest`, `nous-hermes2:latest`, `qwen-abliterated:latest`.
+* **Shell Shortcuts**:
+  * `ask-qwen [prompt]`, `ask-llama [prompt]`, `ask-dolphin [prompt]`, `ask-hermes [prompt]`, `ask-ab [prompt]`
+  * `ollama-warm` (pre-loads code model)
+  * `ollama-flush` / `ollama-stop` (unloads resident models from RAM)
+* **TUI Chat**: `oterm` for interactive terminal sessions.
+
+---
+
+## 5. Central AI Knowledge Base (Obsidian)
+
+* **Vault Location**: `~/Obsidian/AI-Knowledge-Base` (`$OBSIDIAN_AI_VAULT`).
+* **High-Signal Retention**: Excludes raw conversational transcripts; archives only distilled decisions, operational workflows, and verified solutions.
+* **CLI Commands**:
+  * `ai-log [note]` / `ai-log -t [title] [note]` (quick daily entry)
+  * `ai-kb add --category [decisions|insights|solutions|workflows|daily]`
+  * `ai-kb distill [file_or_pipe]` (distills text via local LLM)
+  * `ai-kb ask [prompt]` (queries Ollama and distills takeaways to Obsidian)
+  * `ai-kb search [query]` (instant ripgrep search)
+  * `ai-kb open` (launches Obsidian vault)
+  * `ai-kb status` (knowledge base stats)
+
+---
+
+## 6. Network Posture & RF Monitoring
+
+* **`wlan0`**: Dedicated for RF packet capture and security testing (`wavescope`, `bettercap`, `tshark`). **DO NOT** disrupt, reassign, or alter `wlan0` interface states without explicit request.
+* **`enp0s31f6`**: Primary Ethernet uplink with Quad9 DNS.
+* **Congestion Control**: `tcp_bbr` module available for optimized TCP throughput and latency.
+
+---
+
+## 7. Guidelines for Coding & System Modifications
+
+1. **Package Management**:
+   * Official packages: `sudo pacman -S --needed <package>`
+   * AUR packages: `yay -S --needed <package>`
+   * Always check if a service needs `systemctl enable --now <service>`.
+2. **System Responsiveness**:
+   * `ananicy-cpp` and `cachyos-ananicy-rules` prioritize foreground windows and interactive shell processes.
+   * `nohang` guards against runaway memory spikes.
+3. **Preserve Configuration Integrity**:
+   * Do not overwrite `~/.bashrc` without appending or preserving Starship, ble.sh, and local helpers.
+   * Preserve XFCE panel plugin indices and autostart entries.

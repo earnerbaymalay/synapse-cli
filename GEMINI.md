@@ -2,6 +2,22 @@
 
 You are working in the primary AI CLI Work directory (`~/Desktop/AI CLI WORK`).
 
+## Prime Directive: Security & Anonymity First
+- **Core Stance**: **Always prioritise security & anonymity** across all system modifications, configurations, networking, scripting, and development choices.
+- **Network Privacy**:
+  - Full MAC Address Randomization is mandatory: active on scanning (`wifi.scan-rand-mac-address=yes`) and per-connection session (`wifi.cloned-mac-address=random`). The physical hardware MAC (`b4:69:21:fa:71:d4`) must never be broadcast or leaked.
+  - IPv6 Privacy: RFC 4941 Privacy Extensions enabled and preferred (`ipv6.ip6-privacy=2`).
+  - DNS: Secure Quad9 resolver (`9.9.9.9`, `149.112.112.112`) with malware/tracking filtering.
+  - Connection Priorities: Home Wi-Fi (`WIFI-9PQJ9RF`, WPA3-SAE) is Top Priority (`100`); Hotspot (`Nothing Phone (4a)_6383`) is Secondary Priority (`50`).
+
+## System Architecture & Assistant Context
+- **Machine**: Dell Latitude 7490 (Intel Core i5-8350U, 4c/8t, 24 GB DDR4, 8 GB ZRAM, 512 GB SATA SSD).
+- **OS**: EndeavourOS Linux (Arch rolling, 64-bit).
+- **Desktop Environment**: XFCE 4.20 (xfwm4 `Catppuccin-Mauve-Dark` theme, GTK `catppuccin-mocha-mauve-standard+default`, `Hatter-Purple` & Papirus icons).
+- **Display**: Primary `eDP-1` (1920x1080@60.05Hz, landscape normal) enforced at Xorg modesetting, SDDM Xsetup, and XFCE levels.
+- **Application Launcher**: macOS Launchpad-style `xfce-panel-launcher` bound to standalone Super (Windows) key via `xcape` (`/usr/local/bin/xfce-launcher-toggle`).
+- **EndeavourOS Assistant Skill**: Activated via `.agents/skills/endeavouros-assistant/SKILL.md` for all system modifications and coding.
+
 ## Guidelines & Architecture
 - **Organization**: Keep projects organized into clean, dedicated subdirectories.
 - **Python Environment**: Prefer `uv` (`uv venv`, `uv pip`, `uv run`) for rapid, isolated environments.
@@ -15,13 +31,18 @@ You are working in the primary AI CLI Work directory (`~/Desktop/AI CLI WORK`).
   - Models: `qwen2.5-coder`, `llama3.2`, `nous-hermes2`, `dolphin-mistral`, `qwen-abliterated`.
   - Shell helpers: `ask-qwen`, `ask-llama`, `ask-dolphin`, `ask-hermes`, `ask-ab`, `ask-ollama` (supporting stdin piping and flags).
   - Memory & Lifecycle: `ollama ps` to view resident models; `ollama-stop [model]` or `ollama-flush` to unload and free RAM; `ollama-warm` to pre-load code model.
-- **Trilium Notes Integration**:
-  - ETAPI bridge available at `trilium-ai/trilium_bridge.py` and `trilium-ai/ai_to_trilium.sh` on `http://localhost:8080` (`TRILIUM_PORT=8080`).
-  - Shell commands: `trilium-bridge [search|get|create|append|info]` and `trilium-ask [prompt]`.
+  - TUI Chat: `oterm` for interactive terminal sessions.
+- **Central AI Knowledge Base (Obsidian)**:
+  - Markdown repository at `~/Obsidian/AI-Knowledge-Base` (`OBSIDIAN_AI_VAULT`).
+  - Strict high-signal policy: no verbose transcripts; only distilled decisions, verified solutions, workflows, and insights.
+  - Shell commands: `ai-log [note]` (quick daily entry), `ai-kb add --category [decisions|insights|solutions|workflows|daily]`, `ai-kb distill [text/pipe]` (auto-distill via local model), `ai-kb ask [prompt]` (ask model + archive distilled insight), `ai-kb search [query]`, and `ai-kb open`.
 - **Network Posture**:
   - `wlan0` is dedicated for RF monitoring/packet capture (`wavescope`, `bettercap`, `tshark`).
   - Ethernet (`enp0s31f6`) is the primary uplink with Quad9 DNS.
   - Do not disrupt network interface states without explicit request.
-- **Tooling**:
-  - Use `jq` for JSON processing, `ripgrep` for searching, `fd` for discovery, `lazygit` (`lg`) for git, and `xclip` (`clip`/`clippaste`) for clipboard.
+- **Tooling & Daemons**:
+  - `ananicy-cpp`: Auto-nice process prioritization for buttery smooth UI responsiveness under heavy loads.
+  - `throttled`: Overrides Dell EC thermal throttling to maintain boost frequencies.
+  - `nohang`: User-space low-memory / OOM prevention daemon.
+  - Modern CLI: `jq`, `ripgrep`, `fd`, `lazygit` (`lg`), `lazydocker`, `git-delta` (`delta`), `duf`, and `xclip` (`clip`/`clippaste`).
   - Python: `venv` function auto-activates `.venv` (with `ollama` SDK installed) or creates a new virtualenv.
