@@ -47,6 +47,17 @@ def run_cmd(cmd: List[str]) -> str:
         return ""
 
 
+def get_permanent_mac(iface: str) -> str:
+    """Detect the physical hardware MAC for a network interface."""
+    out = run_cmd(["ethtool", "-P", iface])
+    match = re.search(r"([0-9a-fA-F:]{17})", out)
+    if match:
+        return match.group(1).lower()
+    if iface.startswith("w"):
+        return HARDWARE_MAC.lower()
+    return ""
+
+
 def get_network_privacy_status() -> Dict[str, Any]:
     """Inspect active interface, randomized MAC, DNS-over-TLS, and stealth firewall."""
     # Find active interface
@@ -67,7 +78,8 @@ def get_network_privacy_status() -> Dict[str, Any]:
             cur_mac = f.read().strip().lower()
 
     # Hardware MAC comparison
-    is_spoofed = (cur_mac != HARDWARE_MAC.lower()) and bool(cur_mac)
+    hw_mac = get_permanent_mac(active_iface)
+    is_spoofed = (cur_mac != hw_mac) if hw_mac and cur_mac else False
 
     # Wi-Fi SSID & Priority
     ssid = ""
@@ -81,6 +93,12 @@ def get_network_privacy_status() -> Dict[str, Any]:
     resolve_status = run_cmd(["resolvectl", "status"])
     if "+DNSOverTLS" in resolve_status and "dns.quad9.net" in resolve_status:
         dot_active = True
+
+    # Link-specific DNS check for leaks (DHCP router DNS)
+    link_dns_raw = run_cmd(["resolvectl", "dns", active_iface])
+    link_leak = False
+    if "192.168." in link_dns_raw or "10." in link_dns_raw:
+        link_leak = True
 
     # Firewall target & ICMP drop
     fw_target = "UNKNOWN"
@@ -104,9 +122,10 @@ def get_network_privacy_status() -> Dict[str, Any]:
         "interface": active_iface,
         "ssid": ssid or "Direct / Wired",
         "current_mac": cur_mac or "unknown",
-        "hardware_mac": HARDWARE_MAC,
+        "hardware_mac": hw_mac or HARDWARE_MAC,
         "is_anonymized": is_spoofed,
-        "dot_encrypted": dot_active,
+        "dot_encrypted": dot_active and not link_leak,
+        "link_leaking": link_leak,
         "firewall_target": fw_target,
         "icmp_stealth": icmp_drop,
         "mDNS_disabled": not avahi_leaking,
