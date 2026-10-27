@@ -18,29 +18,48 @@ function lcg() {
 // -------------------------------------------------------------
 // 1. Monolith Pillars Generation (PS2 BIOS Memory Save Towers)
 // -------------------------------------------------------------
+function flightPathX(z) {
+  if (z >= -60) {
+    const p = (50 - z) / 110;
+    const t = p * 4.5;
+    return Math.sin(t * 0.5) * 8.0;
+  } else if (z >= -480) {
+    const p = (-60 - z) / 420;
+    const ease = p * p * (3 - 2 * p);
+    const bankS = Math.sin(ease * Math.PI);
+    return Math.sin(4.5 * 0.5) * 8.0 + bankS * 32.0;
+  }
+  return 6.22;
+}
+
 const towers = [];
-const TOWER_COUNT = 110;
+const TOWER_COUNT = 115;
 
 for (let i = 0; i < TOWER_COUNT; i++) {
   const side = lcg() > 0.5 ? 1 : -1;
-  const x = (18 + lcg() * 120) * side;
-  const z = -lcg() * 620 + 40;
-  const h = 25 + lcg() * 140;
-  const w = 9 + lcg() * 12;
-  const d = 9 + lcg() * 12;
+  const z = -lcg() * 580 + 15;
+  const fx = flightPathX(z);
+  const corridor = 22 + lcg() * 8;
+  const spread = lcg() * 95;
+  const x = fx + (corridor + spread) * side;
+
+  const baseDist = Math.max(35, 50 - z);
+  const heightFactor = 0.35 + 0.65 * Math.pow(lcg(), 0.8);
+  let h = (12 + 0.54 * baseDist) * heightFactor;
+  h = Math.max(25, Math.min(175, h));
+
+  const w = 8 + lcg() * 10;
+  const d = 8 + lcg() * 10;
   const phase = lcg() * Math.PI * 2;
+  const delay = lcg() * 0.4;
   const hue = 195 + Math.floor(lcg() * 30); // 195 - 225 cyan to sapphire
 
   towers.push({
     x, y: 0, z,
     w, h, d,
     phase,
-    hue,
-    // 8 box vertices relative to monolith center-bottom
-    verts: [
-      [-w/2, 0, -d/2], [w/2, 0, -d/2], [w/2, 0, d/2], [-w/2, 0, d/2], // bottom
-      [-w/2, h, -d/2], [w/2, h, -d/2], [w/2, h, d/2], [-w/2, h, d/2]  // top
-    ]
+    delay,
+    hue
   });
 }
 
@@ -48,7 +67,7 @@ for (let i = 0; i < TOWER_COUNT; i++) {
 // 2. Luminous Energy Orbs (Floating Sparks & Speed Motes)
 // -------------------------------------------------------------
 const orbs = [];
-const ORB_COUNT = 380;
+const ORB_COUNT = 360;
 const orbColors = [
   '#38bdf8', // Cyan
   '#0284c7', // Ocean Blue
@@ -62,10 +81,7 @@ for (let i = 0; i < ORB_COUNT; i++) {
     x: (lcg() - 0.5) * 260,
     y: lcg() * 120 - 10,
     z: -lcg() * 600 + 40,
-    vx: (lcg() - 0.5) * 0.4,
-    vy: (lcg() - 0.5) * 0.3,
-    vz: (lcg() - 0.5) * 0.4,
-    radius: 2.2 + lcg() * 3.5,
+    radius: 2.0 + lcg() * 3.5,
     orbitSpeed: 0.6 + lcg() * 1.2,
     orbitRadius: 8 + lcg() * 25,
     orbitPhase: lcg() * Math.PI * 2,
@@ -77,15 +93,15 @@ for (let i = 0; i < ORB_COUNT; i++) {
 // 3. 3D Camera & Projection Math
 // -------------------------------------------------------------
 function getCamera(t) {
-  let cx = 0, cy = 18, cz = 50;
-  let tx = 0, ty = 26, tz = -80;
+  let cx = 0, cy = 12, cz = 50;
+  let tx = 0, ty = 22, tz = -80;
   let roll = 0;
 
   if (t < 4.5) {
     // Phase 1: Slow atmospheric glide
     const p = t / 4.5;
     cx = Math.sin(t * 0.5) * 8.0;
-    cy = 14 + Math.sin(t * 0.35) * 4.0;
+    cy = 12 + Math.sin(t * 0.35) * 3.0;
     cz = 50 - p * 110;
     tx = cx * 0.5;
     ty = 22;
@@ -98,10 +114,10 @@ function getCamera(t) {
     const bankS = Math.sin(ease * Math.PI);
 
     cx = Math.sin(4.5 * 0.5) * 8.0 + bankS * 32.0;
-    cy = 18 + ease * 18.0;
+    cy = 15 + ease * 16.0;
     cz = -60 - ease * 420;
     tx = bankS * 20.0;
-    ty = 26 + ease * 12.0;
+    ty = 22 + ease * 12.0;
     tz = cz - 140;
     roll = -bankS * 0.28; // Dynamic banking roll
   } else {
@@ -117,10 +133,12 @@ function getCamera(t) {
   fx /= fLen; fy /= fLen; fz /= fLen;
 
   // Approximate world up = (0, 1, 0)
-  let rx = fz, ry = 0, rz = -fx;
+  // R = F x W = (-fz, 0, fx)
+  let rx = -fz, ry = 0, rz = fx;
   const rLen = Math.hypot(rx, rz) || 1;
   rx /= rLen; rz /= rLen;
 
+  // U = R x F
   let ux = ry * fz - rz * fy;
   let uy = rz * fx - rx * fz;
   let uz = rx * fy - ry * fx;
@@ -188,25 +206,36 @@ function renderPS2Frame(ctx, t) {
     const sortedTowers = [];
     for (let i = 0; i < towers.length; i++) {
       const tow = towers[i];
-      const dist = Math.hypot(tow.x - cam.cx, (tow.h * 0.5) - cam.cy, tow.z - cam.cz);
-      // Cull towers far behind camera
+      // Rise progress: smooth cubic ease-out over 2.6 seconds
+      const riseP = Math.max(0.0, Math.min(1.0, (t - tow.delay) / 2.6));
+      const rise = 1.0 - Math.pow(1.0 - riseP, 3);
+      const curH = tow.h * rise;
+      if (curH <= 0.2) continue;
+
+      const dist = Math.hypot(tow.x - cam.cx, (curH * 0.5) - cam.cy, tow.z - cam.cz);
+      // Cull towers behind camera
       const fDist = (tow.x - cam.cx) * cam.fx + (tow.z - cam.cz) * cam.fz;
-      if (fDist > -20 && dist < 700) {
-        sortedTowers.push({ tow, dist });
+      if (fDist > 1.0 && dist < 700) {
+        sortedTowers.push({ tow, curH, dist });
       }
     }
     sortedTowers.sort((a, b) => b.dist - a.dist);
 
     // Draw sorted monoliths
     for (let i = 0; i < sortedTowers.length; i++) {
-      const { tow, dist } = sortedTowers[i];
+      const { tow, curH, dist } = sortedTowers[i];
+      const hw = tow.w / 2, hd = tow.d / 2;
+      const verts = [
+        [-hw, 0, -hd], [hw, 0, -hd], [hw, 0, hd], [-hw, 0, hd],
+        [-hw, curH, -hd], [hw, curH, -hd], [hw, curH, hd], [-hw, curH, hd]
+      ];
 
       // Project all 8 box vertices
       const p = [];
       let allValid = true;
       for (let j = 0; j < 8; j++) {
-        const v = tow.verts[j];
-        const proj = projectPoint(tow.x + v[0], tow.y + v[1], tow.z + v[2], cam);
+        const v = verts[j];
+        const proj = projectPoint(tow.x + v[0], v[1], tow.z + v[2], cam);
         if (!proj) { allValid = false; break; }
         p.push(proj);
       }
@@ -219,24 +248,7 @@ function renderPS2Frame(ctx, t) {
       const pulse = 0.75 + 0.25 * Math.sin(t * 2.0 + tow.phase);
       const isSpeeding = t > 4.5 && t < 7.2;
 
-      // Faces definition:
-      // Top face: [4, 5, 6, 7]
-      // Front face: [3, 2, 6, 7]
-      // Left face: [0, 3, 7, 4]
-      // Right face: [1, 2, 6, 5]
-      // Back face: [0, 1, 5, 4]
-
       ctx.save();
-
-      // Top glowing cap
-      ctx.beginPath();
-      ctx.moveTo(p[4].sx, p[4].sy);
-      ctx.lineTo(p[5].sx, p[5].sy);
-      ctx.lineTo(p[6].sx, p[6].sy);
-      ctx.lineTo(p[7].sx, p[7].sy);
-      ctx.closePath();
-      ctx.fillStyle = `rgba(56, 189, 248, ${0.45 * fog * pulse})`;
-      ctx.fill();
 
       // Monolith body silhouette
       // We fill front, left, right faces
@@ -261,6 +273,16 @@ function renderPS2Frame(ctx, t) {
         ctx.fillStyle = grad;
         ctx.fill();
       }
+
+      // Top glowing cap
+      ctx.beginPath();
+      ctx.moveTo(p[4].sx, p[4].sy);
+      ctx.lineTo(p[5].sx, p[5].sy);
+      ctx.lineTo(p[6].sx, p[6].sy);
+      ctx.lineTo(p[7].sx, p[7].sy);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(56, 189, 248, ${0.45 * fog * pulse})`;
+      ctx.fill();
 
       // Iconic PS2 Crystal Monolith Edge Bevels (Cyan wireframe glow)
       ctx.strokeStyle = `rgba(56, 189, 248, ${0.85 * fog * pulse})`;

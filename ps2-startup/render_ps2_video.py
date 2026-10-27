@@ -18,10 +18,13 @@ import time
 
 try:
     import cairo
+except ImportError:
+    cairo = None
+
+try:
     import numpy as np
 except ImportError:
-    print("[!] Error: pycairo and numpy required. Run with uv run --with pycairo,numpy")
-    sys.exit(1)
+    np = None
 
 WIDTH = 1920
 HEIGHT = 1080
@@ -39,6 +42,18 @@ FINAL_MP4 = os.path.join(SCRIPT_DIR, "ps2_xfce_startup.mp4")
 # -----------------------------------------------------------------------------
 # Procedural Scene Data (Pre-computed & shared across workers)
 # -----------------------------------------------------------------------------
+def flight_path_x(z):
+    if z >= -60.0:
+        p = (50.0 - z) / 110.0
+        t = p * 4.5
+        return math.sin(t * 0.5) * 8.0
+    elif z >= -480.0:
+        p = (-60.0 - z) / 420.0
+        ease = p * p * (3.0 - 2.0 * p)
+        bank_s = math.sin(ease * math.pi)
+        return math.sin(4.5 * 0.5) * 8.0 + bank_s * 32.0
+    return 6.22
+
 def init_scene_data():
     # Deterministic pseudo-random sequence
     seed = 1337
@@ -51,20 +66,27 @@ def init_scene_data():
     TOWER_COUNT = 115
     for i in range(TOWER_COUNT):
         side = 1.0 if rnd() > 0.5 else -1.0
-        x = (18.0 + rnd() * 120.0) * side
-        z = -rnd() * 640.0 + 40.0
-        h = 25.0 + rnd() * 145.0
-        w = 9.0 + rnd() * 12.0
-        d = 9.0 + rnd() * 12.0
+        z = -rnd() * 580.0 + 15.0
+        fx = flight_path_x(z)
+        corridor = 22.0 + rnd() * 8.0
+        spread = rnd() * 95.0
+        x = fx + (corridor + spread) * side
+
+        base_dist = max(35.0, 50.0 - z)
+        # Height factor: tallest towers reach the top edge of screen, other towers vary
+        height_factor = 0.35 + 0.65 * (rnd() ** 0.8)
+        h = (12.0 + 0.54 * base_dist) * height_factor
+        h = max(25.0, min(175.0, h))
+
+        w = 8.0 + rnd() * 10.0
+        d = 8.0 + rnd() * 10.0
         phase = rnd() * math.pi * 2.0
+        delay = rnd() * 0.4
         towers.append({
             'x': x, 'y': 0.0, 'z': z,
             'w': w, 'h': h, 'd': d,
             'phase': phase,
-            'verts': [
-                (-w/2, 0.0, -d/2), (w/2, 0.0, -d/2), (w/2, 0.0, d/2), (-w/2, 0.0, d/2),
-                (-w/2, h, -d/2), (w/2, h, -d/2), (w/2, h, d/2), (-w/2, h, d/2)
-            ]
+            'delay': delay,
         })
 
     orbs = []
@@ -99,7 +121,7 @@ def get_camera(t):
     if t < 4.5:
         p = t / 4.5
         cx = math.sin(t * 0.5) * 8.0
-        cy = 14.0 + math.sin(t * 0.35) * 4.0
+        cy = 12.0 + math.sin(t * 0.35) * 3.0
         cz = 50.0 - p * 110.0
         tx = cx * 0.5
         ty = 22.0
@@ -110,10 +132,10 @@ def get_camera(t):
         ease = p * p * (3.0 - 2.0 * p)
         bank_s = math.sin(ease * math.pi)
         cx = math.sin(4.5 * 0.5) * 8.0 + bank_s * 32.0
-        cy = 18.0 + ease * 18.0
+        cy = 15.0 + ease * 16.0
         cz = -60.0 - ease * 420.0
         tx = bank_s * 20.0
-        ty = 26.0 + ease * 12.0
+        ty = 22.0 + ease * 12.0
         tz = cz - 140.0
         roll = -bank_s * 0.28
     else:
@@ -125,10 +147,12 @@ def get_camera(t):
     f_len = math.hypot(fx, fy, fz) or 1.0
     fx /= f_len; fy /= f_len; fz /= f_len
 
-    rx = fz; ry = 0.0; rz = -fx
+    # Right = Forward x World Up (0, 1, 0)
+    rx = -fz; ry = 0.0; rz = fx
     r_len = math.hypot(rx, rz) or 1.0
     rx /= r_len; rz /= r_len
 
+    # Up = Right x Forward
     ux = ry * fz - rz * fy
     uy = rz * fx - rx * fz
     uz = rx * fy - ry * fx
@@ -159,6 +183,8 @@ def project_pt(x, y, z, cam):
 # Worker Function: Render Single Frame to Raw Bytes
 # -----------------------------------------------------------------------------
 def render_single_frame(frame_idx):
+    if cairo is None:
+        raise RuntimeError("pycairo is required to render video frames.")
     t = frame_idx / float(FPS)
     cam = get_camera(t)
 
@@ -183,18 +209,30 @@ def render_single_frame(frame_idx):
         fx, fz = cam[3], cam[5]
         visible_towers = []
         for tow in SCENE_TOWERS:
-            dist = math.hypot(tow['x'] - cx, (tow['h'] * 0.5) - cy, tow['z'] - cz)
+            # Rise progress: smooth cubic ease-out over 2.6 seconds
+            rise_p = max(0.0, min(1.0, (t - tow['delay']) / 2.6))
+            rise = 1.0 - (1.0 - rise_p) ** 3
+            cur_h = tow['h'] * rise
+            if cur_h <= 0.2:
+                continue
+
+            dist = math.hypot(tow['x'] - cx, (cur_h * 0.5) - cy, tow['z'] - cz)
             f_dist = (tow['x'] - cx) * fx + (tow['z'] - cz) * fz
-            if f_dist > -20.0 and dist < 700.0:
-                visible_towers.append((tow, dist))
+            if f_dist > 1.0 and dist < 700.0:
+                visible_towers.append((tow, cur_h, dist))
 
-        visible_towers.sort(key=lambda item: item[1], reverse=True)
+        visible_towers.sort(key=lambda item: item[2], reverse=True)
 
-        for tow, dist in visible_towers:
+        for tow, cur_h, dist in visible_towers:
+            w, d = tow['w'], tow['d']
+            verts = [
+                (-w/2, 0.0, -d/2), (w/2, 0.0, -d/2), (w/2, 0.0, d/2), (-w/2, 0.0, d/2),
+                (-w/2, cur_h, -d/2), (w/2, cur_h, -d/2), (w/2, cur_h, d/2), (-w/2, cur_h, d/2)
+            ]
             pts = []
             valid = True
-            for vx, vy, vz in tow['verts']:
-                p = project_pt(tow['x'] + vx, tow['y'] + vy, tow['z'] + vz, cam)
+            for vx, vy, vz in verts:
+                p = project_pt(tow['x'] + vx, vy, tow['z'] + vz, cam)
                 if not p:
                     valid = False; break
                 pts.append(p)

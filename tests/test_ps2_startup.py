@@ -43,6 +43,40 @@ def test_audio_soundtrack_valid():
     assert int(sample_rate) == 48000
     assert int(channels) == 2
 
+    import wave
+    import numpy as np
+    with wave.open(AUDIO_PATH, "rb") as wf:
+        n = wf.getnframes()
+        data = wf.readframes(n)
+        samples = np.frombuffer(data, dtype=np.int16).astype(np.float32) / 32767.0
+        peak = np.max(np.abs(samples))
+        assert 0.65 <= peak <= 0.75, f"Audio peak {peak:.3f} should be softly mastered around 0.70"
+
+def test_monolith_top_visual_alignment():
+    import sys
+    if PS2_DIR not in sys.path:
+        sys.path.insert(0, PS2_DIR)
+    from render_ps2_video import init_scene_data, get_camera, project_pt
+    towers, _ = init_scene_data()
+    # Check that during rise and flight, multiple monolith tops cleanly reach and align near top of screen (0 <= sy <= 55)
+    for t in [2.0, 3.0, 4.0, 5.0]:
+        cam = get_camera(t)
+        aligned = [
+            tow for tow in towers
+            if (p := project_pt(tow['x'], tow['h'] * (1.0 - (1.0 - max(0.0, min(1.0, (t - tow['delay']) / 2.6))) ** 3), tow['z'], cam))
+            and 0 <= p[0] <= 1920 and 0 <= p[1] <= 55
+        ]
+        assert len(aligned) >= 3, f"Expected multiple towers aligning near top of screen at t={t}, got {len(aligned)}"
+
+    # Also verify zero collisions along camera flight corridor
+    for step in range(0, 720, 15):
+        t = step / 60.0
+        cam = get_camera(t)
+        cx, cy, cz = cam[0], cam[1], cam[2]
+        for tow in towers:
+            assert not (abs(tow['x'] - cx) < (tow['w'] / 2 + 1.0) and abs(tow['z'] - cz) < (tow['d'] / 2 + 1.0)), \
+                f"Camera collision detected at t={t:.2f} with tower at ({tow['x']:.1f}, {tow['z']:.1f})"
+
 def test_launcher_cli_status():
     assert os.path.exists(SCRIPT_PATH), "Launcher script must exist"
     assert os.access(SCRIPT_PATH, os.X_OK), "Launcher script must be executable"
