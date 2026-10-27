@@ -579,10 +579,26 @@
       }
     });
 
-    // Exit on mouse movement in screensaver mode
-    window.addEventListener('mousemove', () => {
-      initialMouseMoveIgnored++;
-      if (exitOnMove && initialMouseMoveIgnored > 5) {
+    // Exit handling in screensaver mode (grace period + distance threshold)
+    let armed = false;
+    let startX = null, startY = null;
+    setTimeout(() => { armed = true; }, 2500);
+
+    window.addEventListener('mousemove', (e) => {
+      if (!exitOnMove || !armed) return;
+      if (startX === null) {
+        startX = e.clientX;
+        startY = e.clientY;
+        return;
+      }
+      const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+      if (dist > 80) {
+        window.close();
+      }
+    });
+
+    window.addEventListener('mousedown', () => {
+      if (exitOnMove && armed) {
         window.close();
       }
     });

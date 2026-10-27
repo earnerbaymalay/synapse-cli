@@ -72,15 +72,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-QUERY_PARAMS=""
-if [[ -n "$THEME" ]]; then
-    QUERY_PARAMS="?theme=${THEME}"
-fi
-if [[ "$SCREENSAVER_MODE" == true ]]; then
-    QUERY_PARAMS="${QUERY_PARAMS:+${QUERY_PARAMS}&}screensaver=1"
-fi
+PARAMS=()
+[[ -n "$THEME" ]] && PARAMS+=("theme=${THEME}")
+[[ "$SCREENSAVER_MODE" == true ]] && PARAMS+=("screensaver=1")
 
-TARGET_URL="file://${INDEX_FILE}${QUERY_PARAMS}"
+QUERY_STRING=""
+if [ ${#PARAMS[@]} -gt 0 ]; then
+    QUERY_STRING="?$(IFS='&'; echo "${PARAMS[*]}")"
+fi
+TARGET_URL="file://${INDEX_FILE}${QUERY_STRING}"
 
 # Detect browser runtime (Chromium preferred for hardware accelerated WebGL/canvas)
 if command -v chromium >/dev/null 2>&1; then

@@ -19,7 +19,7 @@ if [[ "$MODE" == "claude" ]]; then
 
     CMD_MAP["[CLAUDE] ⚡ claude — Launch Claude Code Agent CLI"]="kitty --directory '$WORKSPACE_DIR' claude"
     CMD_MAP["[CLAUDE] 💬 claude-console — Open Claude Side Console (Feed + Inbox)"]="$WORKSPACE_DIR/Scripts/claude-console"
-    CMD_MAP["[CLAUDE] ✎ console-say — Send message / alert to Claude Console"]="COPY:console-say \"\" info"
+    CMD_MAP["[CLAUDE] ✎ console-say — Send message / alert to Claude Console"]="kitty --title 'Send Message to Claude Console' bash -c 'read -e -p \"Message for Claude: \" msg; [[ -n \"\$msg\" ]] && \"$WORKSPACE_DIR/Scripts/console-say\" \"\$msg\" info'"
     CMD_MAP["[CLAUDE] 📥 console-inbox — View Claude incoming messages"]="kitty --hold bash -c \"cat \$HOME/.local/state/claude-console/inbox.md 2>/dev/null || echo 'Inbox empty'\""
     CMD_MAP["[CLAUDE] 📊 lab lines — Vibe vs Hand attribution (Claude focus)"]="kitty --hold lab lines --hours 24"
     CMD_MAP["[CLAUDE] 📋 CLAUDE.md — View Claude instructions & rules"]="kitty --hold cat '$WORKSPACE_DIR/CLAUDE.md'"
@@ -29,13 +29,14 @@ if [[ "$MODE" == "claude" ]]; then
     CMD_MAP["[LAB] lab audit — Prime Directive privacy & stealth audit"]="kitty --hold lab audit"
     CMD_MAP["[LAB] lab status — Command Center telemetry dashboard"]="kitty --title 'Command Center Dashboard' lab status -w"
     CMD_MAP["[DEV] lg — Lazygit TUI with Delta pager"]="kitty --directory '$WORKSPACE_DIR' lazygit"
-    CMD_MAP["[DEV] venv — Smart Python venv activator (uv)"]="COPY:venv"
-    CMD_MAP["[DEV] clip / clippaste — Fast clipboard copy/paste"]="COPY:clip"
+    CMD_MAP["[DEV] venv — Open workspace terminal with venv"]="kitty --directory '$WORKSPACE_DIR' bash -i -c 'venv; exec bash'"
+    CMD_MAP["[DEV] clip / clippaste — Inspect system clipboard content"]="kitty --title 'Clipboard Content' --hold bash -c 'echo \"── Clipboard (xclip) ──\"; xclip -selection clipboard -o 2>/dev/null || echo \"Clipboard empty\"; echo'"
     CMD_MAP["[DEV] synapse — Open Synapse Gateway workspace"]="kitty --directory '$SYNAPSE_DIR'"
     CMD_MAP["[SEC] sec-audit — Pre-commit secret audit & quality check"]="kitty --hold '$WORKSPACE_DIR/Scripts/git-security-hook.sh'"
-    CMD_MAP["[KB] ai-log — Quick entry into Obsidian Daily Digest"]="COPY:ai-log \"\""
+    CMD_MAP["[KB] ai-log — Quick entry into Obsidian Daily Digest"]="kitty --title 'Obsidian Daily Note' bash -c 'read -e -p \"Daily note: \" note; [[ -n \"\$note\" ]] && source ~/.bashrc && ai-log \"\$note\" && notify-send -i document-save \"Obsidian\" \"Saved daily log: \$note\"'"
     CMD_MAP["[KB] ai-notes — Open Obsidian AI Knowledge Base"]="obsidian"
     CMD_MAP["[UI] screensaver — 4K Fluid & Cyber Screensaver (Kiosk)"]="$WORKSPACE_DIR/Scripts/screensaver"
+    CMD_MAP["[UI] screensaver-preview — Preview screensaver in window"]="$WORKSPACE_DIR/Scripts/screensaver --preview"
 else
     PROMPT="Antigravity Command Palette"
     SWITCH_KEY="[MODE] 🔁 Switch Agent Focus ➔ Claude Code Mode"
@@ -45,13 +46,13 @@ else
     CMD_MAP["[AI] agy — Launch Antigravity Agent CLI"]="kitty --directory '$WORKSPACE_DIR' agy"
     CMD_MAP["[AI] claude — Launch Claude Code Agent CLI"]="kitty --directory '$WORKSPACE_DIR' claude"
     CMD_MAP["[AI] claude-console — Open Claude Side Console (Feed + Inbox)"]="$WORKSPACE_DIR/Scripts/claude-console"
-    CMD_MAP["[AI] console-say — Send note to Claude Console"]="COPY:console-say \"\" info"
+    CMD_MAP["[AI] console-say — Send note to Claude Console"]="kitty --title 'Send Message to Claude Console' bash -c 'read -e -p \"Message for Claude: \" msg; [[ -n \"\$msg\" ]] && \"$WORKSPACE_DIR/Scripts/console-say\" \"\$msg\" info'"
     CMD_MAP["[AI] oterm — Terminal Chat TUI (Ollama sessions)"]="kitty oterm"
-    CMD_MAP["[AI] ? <prompt> — Instant inline query to Qwen 2.5 Coder"]="COPY:? \"\""
-    CMD_MAP["[AI] ask-qwen — Query Qwen 2.5 Coder (code specialist)"]="COPY:ask-qwen \"\""
-    CMD_MAP["[AI] ask-llama — Query LLaMA 3.2 3B"]="COPY:ask-llama \"\""
-    CMD_MAP["[AI] ask-dolphin — Query Dolphin-Mistral"]="COPY:ask-dolphin \"\""
-    CMD_MAP["[AI] ask-ab — Query Qwen-Abliterated"]="COPY:ask-ab \"\""
+    CMD_MAP["[AI] ? <prompt> — Instant inline query to Qwen 2.5 Coder"]="kitty --title 'Quick Query (Qwen 2.5 Coder)' bash -c 'read -e -p \"Query Qwen: \" q; [[ -n \"\$q\" ]] && source ~/.bashrc && ? \"\$q\"; echo; read -p \"Press enter to close...\"'"
+    CMD_MAP["[AI] ask-qwen — Query Qwen 2.5 Coder (code specialist)"]="kitty --title 'Ask Qwen 2.5 Coder' bash -c 'read -e -p \"Ask Qwen: \" q; [[ -n \"\$q\" ]] && source ~/.bashrc && ask-qwen \"\$q\"; echo; read -p \"Press enter to close...\"'"
+    CMD_MAP["[AI] ask-llama — Query LLaMA 3.2 3B"]="kitty --title 'Ask LLaMA 3.2' bash -c 'read -e -p \"Ask LLaMA: \" q; [[ -n \"\$q\" ]] && source ~/.bashrc && ask-llama \"\$q\"; echo; read -p \"Press enter to close...\"'"
+    CMD_MAP["[AI] ask-dolphin — Query Dolphin-Mistral"]="kitty --title 'Ask Dolphin-Mistral' bash -c 'read -e -p \"Ask Dolphin: \" q; [[ -n \"\$q\" ]] && source ~/.bashrc && ask-dolphin \"\$q\"; echo; read -p \"Press enter to close...\"'"
+    CMD_MAP["[AI] ask-ab — Query Qwen-Abliterated"]="kitty --title 'Ask Qwen-Abliterated' bash -c 'read -e -p \"Ask Qwen-Abliterated: \" q; [[ -n \"\$q\" ]] && source ~/.bashrc && ask-ab \"\$q\"; echo; read -p \"Press enter to close...\"'"
     CMD_MAP["[AI] ai warm — Preload Qwen 2.5 Coder into RAM"]="bash -c 'source ~/.bashrc && ai warm && notify-send -i dialog-information \"AI CLI\" \"Pre-warmed Qwen 2.5 Coder into RAM\"'"
     CMD_MAP["[AI] ai flush — Stop resident models & free RAM"]="bash -c 'source ~/.bashrc && ai flush && notify-send -i dialog-information \"AI CLI\" \"Flushed resident models from RAM\"'"
     CMD_MAP["[AI] ai status — Show Ollama resident status & memory"]="kitty --hold bash -c 'source ~/.bashrc && ai status'"
@@ -71,7 +72,7 @@ else
     CMD_MAP["[SEC] sec-status — Check MAC Randomization, DoT & Stealth"]="kitty --hold bash -c 'source ~/.bashrc && sec-status'"
     CMD_MAP["[SEC] sec-audit — Audit listener ports & pre-commit scan"]="kitty --hold '$WORKSPACE_DIR/Scripts/git-security-hook.sh'"
     CMD_MAP["[SEC] sys-backup — Snapshot configs & themes to ~/Backups"]="kitty --hold '$WORKSPACE_DIR/Scripts/backup-system-configs.sh'"
-    CMD_MAP["[SEC] omega-snapshot — Snapshot configs to public omega-desktop"]="COPY:~/omega-desktop/bin/omega-snapshot \"\""
+    CMD_MAP["[SEC] omega-snapshot — Snapshot configs to public omega-desktop"]="kitty --title 'Omega-Desktop Snapshot' bash -c 'read -e -p \"Snapshot description: \" d; [[ -n \"\$d\" ]] && ~/omega-desktop/bin/omega-snapshot \"\$d\" && echo \"Snapshot completed.\" && sleep 1.5'"
 
     # Audio & Output Management
     CMD_MAP["[AUDIO] audio-switch — Output selector (Q1 DAC, JBL, Laptop)"]="/home/ebaymlay/.local/bin/audio-switch"
@@ -86,13 +87,13 @@ else
 
     # Development & Knowledge Base
     CMD_MAP["[DEV] lg — Lazygit TUI with Catppuccin Delta pager"]="kitty --directory '$WORKSPACE_DIR' lazygit"
-    CMD_MAP["[DEV] venv — Smart Python venv activator (uv)"]="COPY:venv"
-    CMD_MAP["[DEV] clip / clippaste — Fast clipboard copy/paste"]="COPY:clip"
+    CMD_MAP["[DEV] venv — Open workspace terminal with venv"]="kitty --directory '$WORKSPACE_DIR' bash -i -c 'venv; exec bash'"
+    CMD_MAP["[DEV] clip / clippaste — Inspect system clipboard content"]="kitty --title 'Clipboard Content' --hold bash -c 'echo \"── Clipboard (xclip) ──\"; xclip -selection clipboard -o 2>/dev/null || echo \"Clipboard empty\"; echo'"
     CMD_MAP["[DEV] synapse — Jump to Synapse Gateway Project"]="kitty --directory '$SYNAPSE_DIR'"
     CMD_MAP["[KB] ai-notes — Open Obsidian AI Knowledge Base"]="obsidian"
-    CMD_MAP["[KB] ai-log — Quick entry into Obsidian Daily Digest"]="COPY:ai-log \"\""
-    CMD_MAP["[KB] ai-kb search — Search Obsidian AI Vault"]="COPY:ai-kb search \"\""
-    CMD_MAP["[KB] ai-kb ask — Query local LLM and archive insight"]="COPY:ai-kb ask \"\""
+    CMD_MAP["[KB] ai-log — Quick entry into Obsidian Daily Digest"]="kitty --title 'Obsidian Daily Note' bash -c 'read -e -p \"Daily note: \" note; [[ -n \"\$note\" ]] && source ~/.bashrc && ai-log \"\$note\" && notify-send -i document-save \"Obsidian\" \"Saved daily log: \$note\"'"
+    CMD_MAP["[KB] ai-kb search — Search Obsidian AI Vault"]="kitty --title 'Search Obsidian AI KB' bash -c 'read -e -p \"Search query: \" q; [[ -n \"\$q\" ]] && source ~/.bashrc && ai-kb search \"\$q\"; echo; read -p \"Press enter to close...\"'"
+    CMD_MAP["[KB] ai-kb ask — Query local LLM and archive insight"]="kitty --title 'Ask & Archive to Obsidian' bash -c 'read -e -p \"Prompt for AI KB: \" q; [[ -n \"\$q\" ]] && source ~/.bashrc && ai-kb ask \"\$q\"; echo; read -p \"Press enter to close...\"'"
     CMD_MAP["[PENTEST] mitm-harvest — Intercept & harvest auth tokens"]="kitty --directory '$WORKSPACE_DIR' uv run mitmproxy -s mitmproxy-tools/token_harvester.py"
 
     # UI & Appearance
@@ -114,15 +115,10 @@ mapfile -t SORTED_REMAINDER < <(printf "%s\n" "${REMAINDER[@]}" | sort)
 
 MENU_ITEMS="${SWITCH_KEY}"$'\n'$(printf "%s\n" "${SORTED_REMAINDER[@]}")
 
-CHOICE=$(printf "%s" "$MENU_ITEMS" | rofi -dmenu -i -p "$PROMPT" -lines 15 -width 70)
+# Use -no-custom to guarantee single-Enter execution of highlighted / filtered entry
+CHOICE=$(printf "%s" "$MENU_ITEMS" | rofi -dmenu -i -no-custom -p "$PROMPT" -lines 15 -width 70)
 
 if [[ -n "$CHOICE" && -n "${CMD_MAP[$CHOICE]:-}" ]]; then
     ACTION="${CMD_MAP[$CHOICE]}"
-    if [[ "$ACTION" == COPY:* ]]; then
-        CMD_TO_COPY="${ACTION#COPY:}"
-        printf "%s" "$CMD_TO_COPY" | xclip -selection clipboard
-        notify-send -i edit-copy "$PROMPT" "Copied to clipboard:\n$CMD_TO_COPY"
-    else
-        eval "$ACTION" &
-    fi
+    setsid -f bash -c "$ACTION" >/dev/null 2>&1
 fi
