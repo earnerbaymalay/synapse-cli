@@ -30,11 +30,13 @@ RESET   = "\033[0m"
 
 COMMAND_CATEGORIES = [
     {
-        "category": "🤖 AI Agents & Local LLMs",
+        "category": "🤖 AI Agents & Claude Interchange",
         "color": MAUVE,
         "items": [
             ("agy", "Antigravity CLI (Gemini 2.5 context + MCP)"),
             ("claude", "Claude Code assistant (CLAUDE.md context)"),
+            ("claude-console", "Claude Side Console (live feed & inbox.md)"),
+            ("console-say \"msg\"", "Send notification/message to Claude Console"),
             ("oterm", "Interactive Terminal Chat TUI (multi-turn)"),
             ("? \"<prompt>\"", "Instant Qwen 2.5 Coder query (supports pipe)"),
             ("ask-qwen \"prompt\"", "Targeted Qwen 2.5 Coder (code specialist)"),
@@ -44,20 +46,34 @@ COMMAND_CATEGORIES = [
         ]
     },
     {
+        "category": "🧪 Lab Toolkit & Code Attribution",
+        "color": TEAL,
+        "items": [
+            ("lab audit", "Prime Directive privacy audit (MAC, DoT, DROP)"),
+            ("lab lines [--hours 24]", "Count vibe-coded vs hand-coded lines"),
+            ("lab status", "Live Command Center dashboard (cc -w)"),
+            ("lab backup", "Full config snapshot to ~/Backups (keep 5)"),
+            ("lab pcap | scan | cap", "AI pcap analysis & BPF-scoped RF tools"),
+        ]
+    },
+    {
         "category": "🛡️ Security, Privacy & Network",
         "color": GREEN,
         "items": [
             ("cc (or command-center)", "Full live TUI telemetry dashboard (cc -w)"),
             ("sec-status", "Live MAC randomization, DoT & stealth check"),
-            ("sec-audit", "Pre-commit secret audit & port scanner"),
+            ("sec-audit", "Pre-commit secret audit & quality gate check"),
             ("sys-backup", "Full config snapshot to ~/Backups (keep 5)"),
+            ("omega-snapshot \"note\"", "Snapshot configs to public omega-desktop"),
             ("wifi-home | wifi-hotspot", "Prioritized Wi-Fi connection control"),
         ]
     },
     {
-        "category": "⚡ Hardware, Thermals & Daemons",
+        "category": "🔊 Audio & Hardware",
         "color": YELLOW,
         "items": [
+            ("audio-switch", "Rofi audio output picker (Q1, JBL, Laptop)"),
+            ("q1-mode music", "Force FiiO Q1 DAC into A2DP SBC-XQ mode"),
             ("throttled-status", "Dell 7490 thermal override (25W sustained PL1)"),
             ("ananicy-status", "CachyOS auto-nice process responsiveness"),
             ("oom-status", "Nohang low-memory freeze protector"),
@@ -70,6 +86,7 @@ COMMAND_CATEGORIES = [
             ("lg", "Lazygit TUI with Catppuccin Delta diff pager"),
             ("venv", "Smart virtualenv manager (uv isolated env)"),
             ("clip | clippaste", "Fast system clipboard copy & paste"),
+            ("synapse", "Synapse Gateway workspace (~/work/synapse)"),
             ("mitm-harvest", "Mitmproxy credential & token harvester"),
             ("scope-cap", "BPF-filtered Wi-Fi packet capture"),
         ]
@@ -78,13 +95,13 @@ COMMAND_CATEGORIES = [
         "category": "🎨 Desktop, Theming & Knowledge",
         "color": PEACH,
         "items": [
+            ("agy-palette", "GUI Command Palette w/ Claude Code interchange"),
             ("Super Key", "macOS-style XFCE Launchpad (toggle)"),
             ("font-tune", "Typography, hinting & subpixel tuner"),
             ("set-wallpaper", "4K wallpaper selector & desktop background"),
             ("ai-log \"note\"", "Quick trimmed note to Obsidian Daily Digest"),
             ("ai-kb search \"query\"", "Fast ripgrep search in AI Knowledge Base"),
             ("ai-notes", "Open Obsidian AI Knowledge Base vault"),
-            ("agy-menu", "GUI searchable command launcher (Rofi)"),
         ]
     }
 ]
@@ -147,8 +164,8 @@ def print_banner():
     print(f"{MAUVE}│{RESET} {badge_str} {MAUVE}│{RESET}")
     print(f"{MAUVE}├────────────────────────────────────────────────────────────────────────────────────┤{RESET}")
     print(f"{MAUVE}│{RESET} {BOLD}{SAPPHIRE}Agents:{RESET} {MAUVE}agy{RESET} · {BLUE}claude{RESET} · {TEAL}oterm{RESET}  {DIM}│{RESET} {BOLD}{SAPPHIRE}Query:{RESET} {YELLOW}? \"prompt\"{RESET} · {YELLOW}ask-qwen{RESET} · {YELLOW}ai{RESET}           {MAUVE}│{RESET}")
-    print(f"{MAUVE}│{RESET} {BOLD}{SAPPHIRE}Tools:{RESET}  {GREEN}cc{RESET} (dashboard) · {GREEN}sec-status{RESET} · {GREEN}sys-backup{RESET} · {PEACH}lg{RESET} · {PEACH}venv{RESET} · {MAUVE}agy-menu{RESET} (Rofi)   {MAUVE}│{RESET}")
-    print(f"{MAUVE}╰─ {SUBTEXT}Type {BOLD}{MAUVE}agy-cmd{RESET}{SUBTEXT} or {BOLD}{MAUVE}ai help{RESET}{SUBTEXT} for complete categorized command cheat-sheet ──────╯{RESET}")
+    print(f"{MAUVE}│{RESET} {BOLD}{SAPPHIRE}Tools:{RESET}  {GREEN}lab{RESET} (audit/lines) · {GREEN}cc{RESET} (dash) · {PEACH}lg{RESET} · {PEACH}venv{RESET} · {MAUVE}agy-palette{RESET} (Rofi) {MAUVE}│{RESET}")
+    print(f"{MAUVE}╰─ {SUBTEXT}Type {BOLD}{MAUVE}agy-palette{RESET}{SUBTEXT} for GUI palette or {BOLD}{MAUVE}ai help{RESET}{SUBTEXT} for categorized command cheat-sheet ─╯{RESET}")
 
 
 def print_full():
@@ -158,7 +175,7 @@ def print_full():
     term_width = max(term_width, 88)
     line_inner = term_width - 2
 
-    header = "🌌 ANTIGRAVITY WORKSPACE & SYSTEM COMMAND REFERENCE"
+    header = "🌌 ANTIGRAVITY COMMAND PALETTE & SYSTEM REFERENCE"
     print(f"{MAUVE}╔{'═' * line_inner}╗{RESET}")
     print(f"{MAUVE}║{RESET}{BOLD}{MAUVE}{header.center(line_inner)}{RESET}{MAUVE}║{RESET}")
     print(f"{MAUVE}║{RESET}{' ' * ((line_inner - 74)//2)}{badge_str}{' ' * ((line_inner - 74 + 1)//2)}{MAUVE}║{RESET}")
@@ -175,7 +192,7 @@ def print_full():
             print(f"{MAUVE}║{RESET}    {cmd_fmt} {desc_fmt}{' ' * padding}{MAUVE}║{RESET}")
         print(f"{MAUVE}║{' ' * line_inner}║{RESET}")
 
-    footer_hint = "Run 'command-center -w' for live metrics | 'agy-menu' for GUI picker"
+    footer_hint = "Run 'command-center -w' for live metrics | 'agy-palette' for GUI picker"
     print(f"{MAUVE}╠{'═' * line_inner}╣{RESET}")
     print(f"{MAUVE}║{RESET}{SUBTEXT}{footer_hint.center(line_inner)}{RESET}{MAUVE}║{RESET}")
     print(f"{MAUVE}╚{'═' * line_inner}╝{RESET}")
