@@ -64,7 +64,7 @@ def test_input_conf_valid():
     with open(input_conf, "r") as f:
         content = f.read()
     assert "ESC" in content and "quit" in content, "ESC must be bound to quit"
-    assert "ENTER" in content and "quit" in content, "ENTER must be bound to quit"
+    assert "q" in content and "quit" in content, "q must be bound to quit"
     assert "SPACE" in content and "pause" in content, "SPACE must cycle pause"
 
 def test_generate_audio_functional(tmp_path):
