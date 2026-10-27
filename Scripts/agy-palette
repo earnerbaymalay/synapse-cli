@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # agy-palette — Antigravity Command Palette with Claude Code interchange
-# Searchable Command Palette using Rofi & Catppuccin theme
+# Searchable Command Palette using Rofi, Kitty & Catppuccin theme
 set -euo pipefail
 
 MODE="${1:-agy}"
@@ -17,22 +17,22 @@ if [[ "$MODE" == "claude" ]]; then
     SWITCH_KEY="[MODE] 🔁 Switch Agent Focus ➔ Antigravity Mode"
     CMD_MAP["$SWITCH_KEY"]="$SCRIPT_PATH --agy"
 
-    CMD_MAP["[CLAUDE] ⚡ claude — Launch Claude Code Agent CLI"]="xfce4-terminal --working-directory='$WORKSPACE_DIR' -e 'claude'"
+    CMD_MAP["[CLAUDE] ⚡ claude — Launch Claude Code Agent CLI"]="kitty --directory '$WORKSPACE_DIR' claude"
     CMD_MAP["[CLAUDE] 💬 claude-console — Open Claude Side Console (Feed + Inbox)"]="$WORKSPACE_DIR/Scripts/claude-console"
     CMD_MAP["[CLAUDE] ✎ console-say — Send message / alert to Claude Console"]="COPY:console-say \"\" info"
-    CMD_MAP["[CLAUDE] 📥 console-inbox — View Claude incoming messages"]="xfce4-terminal -H -e 'bash -c \"cat \\\$HOME/.local/state/claude-console/inbox.md 2>/dev/null || echo \\\"Inbox empty\\\"; echo; read -p \\\"Press enter to close...\\\"\"'"
-    CMD_MAP["[CLAUDE] 📊 lab lines — Vibe vs Hand attribution (Claude focus)"]="xfce4-terminal -H -e 'bash -c \"lab lines --hours 24; echo; read -p \\\"Press enter to close...\\\"\"'"
-    CMD_MAP["[CLAUDE] 📋 CLAUDE.md — View Claude instructions & rules"]="xfce4-terminal -e 'cat $WORKSPACE_DIR/CLAUDE.md; echo; read -p \\\"Press enter to close...\\\"'"
-    CMD_MAP["[CLAUDE] 🔄 Handover: Sync & Review AGENTS.md"]="xfce4-terminal -e 'cat $WORKSPACE_DIR/AGENTS.md; echo; read -p \\\"Press enter to close...\\\"'"
+    CMD_MAP["[CLAUDE] 📥 console-inbox — View Claude incoming messages"]="kitty --hold bash -c \"cat \$HOME/.local/state/claude-console/inbox.md 2>/dev/null || echo 'Inbox empty'\""
+    CMD_MAP["[CLAUDE] 📊 lab lines — Vibe vs Hand attribution (Claude focus)"]="kitty --hold lab lines --hours 24"
+    CMD_MAP["[CLAUDE] 📋 CLAUDE.md — View Claude instructions & rules"]="kitty --hold cat '$WORKSPACE_DIR/CLAUDE.md'"
+    CMD_MAP["[CLAUDE] 🔄 Handover: Sync & Review AGENTS.md"]="kitty --hold cat '$WORKSPACE_DIR/AGENTS.md'"
 
     # Common development & tools for Claude
-    CMD_MAP["[LAB] lab audit — Prime Directive privacy & stealth audit"]="xfce4-terminal -H -e 'bash -c \"lab audit; echo; read -p \\\"Press enter to close...\\\"\"'"
-    CMD_MAP["[LAB] lab status — Command Center telemetry dashboard"]="xfce4-terminal --title='Command Center Dashboard' -e 'lab status -w'"
-    CMD_MAP["[DEV] lg — Lazygit TUI with Delta pager"]="xfce4-terminal --working-directory='$WORKSPACE_DIR' -e 'lazygit'"
+    CMD_MAP["[LAB] lab audit — Prime Directive privacy & stealth audit"]="kitty --hold lab audit"
+    CMD_MAP["[LAB] lab status — Command Center telemetry dashboard"]="kitty --title 'Command Center Dashboard' lab status -w"
+    CMD_MAP["[DEV] lg — Lazygit TUI with Delta pager"]="kitty --directory '$WORKSPACE_DIR' lazygit"
     CMD_MAP["[DEV] venv — Smart Python venv activator (uv)"]="COPY:venv"
     CMD_MAP["[DEV] clip / clippaste — Fast clipboard copy/paste"]="COPY:clip"
-    CMD_MAP["[DEV] synapse — Open Synapse Gateway workspace"]="xfce4-terminal --working-directory='$SYNAPSE_DIR'"
-    CMD_MAP["[SEC] sec-audit — Pre-commit secret audit & quality check"]="xfce4-terminal -H -e 'bash -c \"$WORKSPACE_DIR/Scripts/git-security-hook.sh; echo; read -p \\\"Press enter to close...\\\"\"'"
+    CMD_MAP["[DEV] synapse — Open Synapse Gateway workspace"]="kitty --directory '$SYNAPSE_DIR'"
+    CMD_MAP["[SEC] sec-audit — Pre-commit secret audit & quality check"]="kitty --hold '$WORKSPACE_DIR/Scripts/git-security-hook.sh'"
     CMD_MAP["[KB] ai-log — Quick entry into Obsidian Daily Digest"]="COPY:ai-log \"\""
     CMD_MAP["[KB] ai-notes — Open Obsidian AI Knowledge Base"]="obsidian"
 else
@@ -41,11 +41,11 @@ else
     CMD_MAP["$SWITCH_KEY"]="$SCRIPT_PATH --claude"
 
     # AI Agents & Interchange
-    CMD_MAP["[AI] agy — Launch Antigravity Agent CLI"]="xfce4-terminal --working-directory='$WORKSPACE_DIR' -e 'agy'"
-    CMD_MAP["[AI] claude — Launch Claude Code Agent CLI"]="xfce4-terminal --working-directory='$WORKSPACE_DIR' -e 'claude'"
+    CMD_MAP["[AI] agy — Launch Antigravity Agent CLI"]="kitty --directory '$WORKSPACE_DIR' agy"
+    CMD_MAP["[AI] claude — Launch Claude Code Agent CLI"]="kitty --directory '$WORKSPACE_DIR' claude"
     CMD_MAP["[AI] claude-console — Open Claude Side Console (Feed + Inbox)"]="$WORKSPACE_DIR/Scripts/claude-console"
     CMD_MAP["[AI] console-say — Send note to Claude Console"]="COPY:console-say \"\" info"
-    CMD_MAP["[AI] oterm — Terminal Chat TUI (Ollama sessions)"]="xfce4-terminal -e 'oterm'"
+    CMD_MAP["[AI] oterm — Terminal Chat TUI (Ollama sessions)"]="kitty oterm"
     CMD_MAP["[AI] ? <prompt> — Instant inline query to Qwen 2.5 Coder"]="COPY:? \"\""
     CMD_MAP["[AI] ask-qwen — Query Qwen 2.5 Coder (code specialist)"]="COPY:ask-qwen \"\""
     CMD_MAP["[AI] ask-llama — Query LLaMA 3.2 3B"]="COPY:ask-llama \"\""
@@ -53,51 +53,51 @@ else
     CMD_MAP["[AI] ask-ab — Query Qwen-Abliterated"]="COPY:ask-ab \"\""
     CMD_MAP["[AI] ai warm — Preload Qwen 2.5 Coder into RAM"]="bash -c 'source ~/.bashrc && ai warm && notify-send -i dialog-information \"AI CLI\" \"Pre-warmed Qwen 2.5 Coder into RAM\"'"
     CMD_MAP["[AI] ai flush — Stop resident models & free RAM"]="bash -c 'source ~/.bashrc && ai flush && notify-send -i dialog-information \"AI CLI\" \"Flushed resident models from RAM\"'"
-    CMD_MAP["[AI] ai status — Show Ollama resident status & memory"]="xfce4-terminal -H -e 'bash -c \"source ~/.bashrc && ai status; echo; read -p \\\"Press enter to close...\\\"\"'"
+    CMD_MAP["[AI] ai status — Show Ollama resident status & memory"]="kitty --hold bash -c 'source ~/.bashrc && ai status'"
 
     # Lab Toolkit & Lines Attribution
-    CMD_MAP["[LAB] lab audit — Prime Directive privacy & stealth audit"]="xfce4-terminal -H -e 'bash -c \"lab audit; echo; read -p \\\"Press enter to close...\\\"\"'"
-    CMD_MAP["[LAB] lab lines — Count vibe-coded vs hand-coded lines (24h)"]="xfce4-terminal -H -e 'bash -c \"lab lines --hours 24; echo; read -p \\\"Press enter to close...\\\"\"'"
-    CMD_MAP["[LAB] lab status — Command Center telemetry dashboard"]="xfce4-terminal --title='Command Center Dashboard' -e 'lab status -w'"
-    CMD_MAP["[LAB] lab backup — Backup system configs & dotfiles"]="xfce4-terminal -H -e 'bash -c \"lab backup; echo; read -p \\\"Press enter to close...\\\"\"'"
-    CMD_MAP["[LAB] lab pcap — AI-assisted Wi-Fi packet capture analysis"]="xfce4-terminal -H -e 'bash -c \"lab pcap --help; echo; read -p \\\"Press enter to close...\\\"\"'"
-    CMD_MAP["[LAB] lab scan — RF Wi-Fi channel survey on wlan0"]="xfce4-terminal --working-directory='$WORKSPACE_DIR' -e 'lab scan'"
-    CMD_MAP["[LAB] lab capture — BPF-scoped Wi-Fi packet capture"]="xfce4-terminal --working-directory='$WORKSPACE_DIR' -e 'lab capture'"
-    CMD_MAP["[LAB] lab scope — Rebuild scope.bpf from scope-targets.txt"]="xfce4-terminal -H -e 'bash -c \"lab scope; echo; read -p \\\"Press enter to close...\\\"\"'"
+    CMD_MAP["[LAB] lab audit — Prime Directive privacy & stealth audit"]="kitty --hold lab audit"
+    CMD_MAP["[LAB] lab lines — Count vibe-coded vs hand-coded lines (24h)"]="kitty --hold lab lines --hours 24"
+    CMD_MAP["[LAB] lab status — Command Center telemetry dashboard"]="kitty --title 'Command Center Dashboard' lab status -w"
+    CMD_MAP["[LAB] lab backup — Backup system configs & dotfiles"]="kitty --hold lab backup"
+    CMD_MAP["[LAB] lab pcap — AI-assisted Wi-Fi packet capture analysis"]="kitty --hold lab pcap --help"
+    CMD_MAP["[LAB] lab scan — RF Wi-Fi channel survey on wlan0"]="kitty --directory '$WORKSPACE_DIR' lab scan"
+    CMD_MAP["[LAB] lab capture — BPF-scoped Wi-Fi packet capture"]="kitty --directory '$WORKSPACE_DIR' lab capture"
+    CMD_MAP["[LAB] lab scope — Rebuild scope.bpf from scope-targets.txt"]="kitty --hold lab scope"
 
     # Security, Privacy & Network
-    CMD_MAP["[SEC] cc -w — Live Command Center Telemetry Dashboard"]="xfce4-terminal --title='Command Center Dashboard' -e 'command-center -w'"
-    CMD_MAP["[SEC] sec-status — Check MAC Randomization, DoT & Stealth"]="xfce4-terminal -H -e 'bash -c \"source ~/.bashrc && sec-status; echo; read -p \\\"Press enter to close...\\\"\"'"
-    CMD_MAP["[SEC] sec-audit — Audit listener ports & pre-commit scan"]="xfce4-terminal -H -e 'bash -c \"$WORKSPACE_DIR/Scripts/git-security-hook.sh; echo; read -p \\\"Press enter to close...\\\"\"'"
-    CMD_MAP["[SEC] sys-backup — Snapshot configs & themes to ~/Backups"]="xfce4-terminal -H -e 'bash -c \"$WORKSPACE_DIR/Scripts/backup-system-configs.sh; echo; read -p \\\"Press enter to close...\\\"\"'"
+    CMD_MAP["[SEC] cc -w — Live Command Center Telemetry Dashboard"]="kitty --title 'Command Center Dashboard' command-center -w"
+    CMD_MAP["[SEC] sec-status — Check MAC Randomization, DoT & Stealth"]="kitty --hold bash -c 'source ~/.bashrc && sec-status'"
+    CMD_MAP["[SEC] sec-audit — Audit listener ports & pre-commit scan"]="kitty --hold '$WORKSPACE_DIR/Scripts/git-security-hook.sh'"
+    CMD_MAP["[SEC] sys-backup — Snapshot configs & themes to ~/Backups"]="kitty --hold '$WORKSPACE_DIR/Scripts/backup-system-configs.sh'"
     CMD_MAP["[SEC] omega-snapshot — Snapshot configs to public omega-desktop"]="COPY:~/omega-desktop/bin/omega-snapshot \"\""
 
     # Audio & Output Management
     CMD_MAP["[AUDIO] audio-switch — Output selector (Q1 DAC, JBL, Laptop)"]="/home/ebaymlay/.local/bin/audio-switch"
     CMD_MAP["[AUDIO] q1-mode music — Force FiiO Q1 DAC into A2DP SBC-XQ"]="bash -c '/home/ebaymlay/.local/bin/q1-mode music && notify-send -i audio-card \"Audio\" \"Q1 set to Music (A2DP SBC-XQ)\"'"
     CMD_MAP["[AUDIO] audio-restart — Restart PipeWire & WirePlumber"]="bash -c 'systemctl --user restart pipewire pipewire-pulse wireplumber && notify-send -i audio-card \"Audio\" \"Restarted PipeWire audio services\"'"
-    CMD_MAP["[AUDIO] wpctl status — Inspect PipeWire audio devices & active sinks"]="xfce4-terminal -H -e 'bash -c \"wpctl status; echo; read -p \\\"Press enter to close...\\\"\"'"
+    CMD_MAP["[AUDIO] wpctl status — Inspect PipeWire audio devices & active sinks"]="kitty --hold wpctl status"
 
     # System, Thermals & Daemons
-    CMD_MAP["[SYS] throttled-status — Dell 7490 25W Thermal Override"]="xfce4-terminal -H -e 'systemctl status throttled --no-pager'"
-    CMD_MAP["[SYS] ananicy-status — CachyOS Auto-Nice Daemon"]="xfce4-terminal -H -e 'systemctl status ananicy-cpp --no-pager'"
-    CMD_MAP["[SYS] oom-status — Nohang Low-Memory Freeze Protector"]="xfce4-terminal -H -e 'systemctl status nohang --no-pager'"
+    CMD_MAP["[SYS] throttled-status — Dell 7490 25W Thermal Override"]="kitty --hold systemctl status throttled --no-pager"
+    CMD_MAP["[SYS] ananicy-status — CachyOS Auto-Nice Daemon"]="kitty --hold systemctl status ananicy-cpp --no-pager"
+    CMD_MAP["[SYS] oom-status — Nohang Low-Memory Freeze Protector"]="kitty --hold systemctl status nohang --no-pager"
 
     # Development & Knowledge Base
-    CMD_MAP["[DEV] lg — Lazygit TUI with Catppuccin Delta pager"]="xfce4-terminal --working-directory='$WORKSPACE_DIR' -e 'lazygit'"
+    CMD_MAP["[DEV] lg — Lazygit TUI with Catppuccin Delta pager"]="kitty --directory '$WORKSPACE_DIR' lazygit"
     CMD_MAP["[DEV] venv — Smart Python venv activator (uv)"]="COPY:venv"
     CMD_MAP["[DEV] clip / clippaste — Fast clipboard copy/paste"]="COPY:clip"
-    CMD_MAP["[DEV] synapse — Jump to Synapse Gateway Project"]="xfce4-terminal --working-directory='$SYNAPSE_DIR'"
+    CMD_MAP["[DEV] synapse — Jump to Synapse Gateway Project"]="kitty --directory '$SYNAPSE_DIR'"
     CMD_MAP["[KB] ai-notes — Open Obsidian AI Knowledge Base"]="obsidian"
     CMD_MAP["[KB] ai-log — Quick entry into Obsidian Daily Digest"]="COPY:ai-log \"\""
     CMD_MAP["[KB] ai-kb search — Search Obsidian AI Vault"]="COPY:ai-kb search \"\""
     CMD_MAP["[KB] ai-kb ask — Query local LLM and archive insight"]="COPY:ai-kb ask \"\""
-    CMD_MAP["[PENTEST] mitm-harvest — Intercept & harvest auth tokens"]="xfce4-terminal --working-directory='$WORKSPACE_DIR' -e 'uv run mitmproxy -s mitmproxy-tools/token_harvester.py'"
+    CMD_MAP["[PENTEST] mitm-harvest — Intercept & harvest auth tokens"]="kitty --directory '$WORKSPACE_DIR' uv run mitmproxy -s mitmproxy-tools/token_harvester.py"
 
     # UI & Appearance
     CMD_MAP["[UI] xfce-launcher-toggle — Toggle macOS Launchpad (Super Key)"]="/usr/local/bin/xfce-launcher-toggle"
-    CMD_MAP["[UI] font-tune — System typography & font rendering tuner"]="xfce4-terminal -e '$WORKSPACE_DIR/font-tune.sh'"
-    CMD_MAP["[UI] set-wallpaper — 4K wallpaper picker & setter"]="xfce4-terminal -e '$WORKSPACE_DIR/set-wallpaper.sh'"
+    CMD_MAP["[UI] font-tune — System typography & font rendering tuner"]="kitty '$WORKSPACE_DIR/font-tune.sh'"
+    CMD_MAP["[UI] set-wallpaper — 4K wallpaper picker & setter"]="kitty '$WORKSPACE_DIR/set-wallpaper.sh'"
 fi
 
 # Build menu list: keep switch key pinned at top, sort remainder
