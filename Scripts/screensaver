@@ -10,29 +10,129 @@ THEME=""
 PREVIEW=false
 SCREENSAVER_MODE=true
 
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/screensaver"
+STATE_FILE="$STATE_DIR/theme_rotation.conf"
+mkdir -p "$STATE_DIR"
+
+get_current_boot_id() {
+    if [[ -r /proc/sys/kernel/random/boot_id ]]; then
+        cat /proc/sys/kernel/random/boot_id
+    else
+        uptime -s 2>/dev/null || date +%Y%m%d
+    fi
+}
+
+load_rotation_state() {
+    SAVED_BOOT_ID=""
+    SAVED_THEME="4"
+    if [[ -f "$STATE_FILE" ]]; then
+        # shellcheck source=/dev/null
+        source "$STATE_FILE" 2>/dev/null || true
+    fi
+}
+
+rotate_startup_theme() {
+    load_rotation_state
+    local current_boot
+    current_boot=$(get_current_boot_id)
+
+    if [[ "$current_boot" != "$SAVED_BOOT_ID" ]]; then
+        # New startup session! Alternate between 4 and 5
+        if [[ "$SAVED_THEME" == "4" ]]; then
+            SAVED_THEME="5"
+        else
+            SAVED_THEME="4"
+        fi
+        SAVED_BOOT_ID="$current_boot"
+        cat > "$STATE_FILE" << EOF
+SAVED_BOOT_ID="$SAVED_BOOT_ID"
+SAVED_THEME="$SAVED_THEME"
+EOF
+    fi
+    echo "$SAVED_THEME"
+}
+
+force_rotate_theme() {
+    load_rotation_state
+    local current_boot
+    current_boot=$(get_current_boot_id)
+
+    if [[ "$SAVED_THEME" == "4" ]]; then
+        SAVED_THEME="5"
+    else
+        SAVED_THEME="4"
+    fi
+    SAVED_BOOT_ID="$current_boot"
+    cat > "$STATE_FILE" << EOF
+SAVED_BOOT_ID="$SAVED_BOOT_ID"
+SAVED_THEME="$SAVED_THEME"
+EOF
+    echo -e "\033[1;32m[✓]\033[0m Rotated screensaver theme to: \033[1;35m#${SAVED_THEME}\033[0m ($(get_theme_name "$SAVED_THEME"))"
+}
+
+get_theme_name() {
+    case "$1" in
+        1) echo "Liquid Chromium (Y2K fluid mercury waves)" ;;
+        2) echo "Geomorphic Tesseract (Sacred 4D wireframe hypercube)" ;;
+        3) echo "Cyber Glitch (Horizon grid & digital raster tearing)" ;;
+        4) echo "Chromatic Aurora (Subtle fluid multi-harmonic spectral ribbons)" ;;
+        5) echo "Omarchy ASCII (Monospace kinetic telemetry emblem)" ;;
+        *) echo "Theme #$1" ;;
+    esac
+}
+
+show_status() {
+    load_rotation_state
+    local current_boot
+    current_boot=$(get_current_boot_id)
+    local active_theme="$SAVED_THEME"
+    if [[ "$current_boot" != "$SAVED_BOOT_ID" ]]; then
+        if [[ "$SAVED_THEME" == "4" ]]; then
+            active_theme="5"
+        else
+            active_theme="4"
+        fi
+    fi
+
+    echo -e "\033[1;38;2;203;166;247m── 🌌 Omni-Screensaver Status & Startup Rotation ──\033[0m"
+    echo -e "  Current Boot ID:    \033[2m${current_boot}\033[0m"
+    echo -e "  Recorded Boot ID:   \033[2m${SAVED_BOOT_ID:-None}\033[0m"
+    echo -e "  Startup Rotation:   \033[1;32mACTIVE\033[0m (Alternating per startup: #4 ⟷ #5)"
+    echo -e "  Active Theme:       \033[1;35m#${active_theme}\033[0m - $(get_theme_name "$active_theme")"
+    echo -e "  State File:         \033[2m${STATE_FILE}\033[0m"
+    echo ""
+    list_themes
+}
+
 print_help() {
     cat << 'EOF'
 Omni-Screensaver // Y2K Cybernetic & Geomorphic Suite
 Usage: screensaver [options]
 
 Options:
-  -p, --preview      Launch in windowed preview mode (1100x680)
-  -t, --theme <1-5>  Start directly with specific theme:
-                       1: Liquid Chromium (Y2K fluid mercury waves)
-                       2: Geomorphic Tesseract (Sacred 4D wireframe hypercube)
-                       3: Cyber Glitch (Horizon grid & digital raster tearing)
-                       4: Chromatic Aurora (Subtle fluid multi-harmonic spectral ribbons)
-                       5: Omarchy ASCII (Monospace kinetic telemetry emblem)
-  -l, --list         List available themes and visual styles
-  -h, --help         Show this help message
+  -p, --preview        Launch in windowed preview mode (1100x680)
+  -t, --theme <1-5>    Start directly with specific theme:
+                         1: Liquid Chromium (Y2K fluid mercury waves)
+                         2: Geomorphic Tesseract (Sacred 4D wireframe hypercube)
+                         3: Cyber Glitch (Horizon grid & digital raster tearing)
+                         4: Chromatic Aurora (Subtle fluid spectral ribbons)
+                         5: Omarchy ASCII (Monospace kinetic telemetry emblem)
+  -r, --rotate         Manually toggle active theme between #4 and #5
+  -s, --status         Show startup rotation status and active theme
+  -l, --list           List available themes and visual styles
+  -h, --help           Show this help message
+
+Startup Rotation:
+  By default, screensaver automatically alternates between Theme #4
+  (Chromatic Aurora) and Theme #5 (Omarchy ASCII) per system startup.
 
 Controls while running:
-  [1-5]              Directly switch theme
-  [SPACE]            Cycle to next theme
-  [G]                Trigger glitch pulse
-  [H]                Toggle HUD information badge
-  [F]                Toggle Fullscreen
-  [ESC] / [Q]        Exit screensaver
+  [1-5]                Directly switch theme
+  [SPACE]              Cycle to next theme
+  [G]                  Trigger glitch pulse
+  [H]                  Toggle HUD information badge
+  [F]                  Toggle Fullscreen
+  [ESC] / [Q]          Exit screensaver
 EOF
 }
 
@@ -56,6 +156,18 @@ while [[ $# -gt 0 ]]; do
             THEME="$2"
             shift 2
             ;;
+        -r|--rotate)
+            force_rotate_theme
+            exit 0
+            ;;
+        -s|--status)
+            show_status
+            exit 0
+            ;;
+        --startup-hook)
+            rotate_startup_theme >/dev/null
+            exit 0
+            ;;
         -l|--list)
             list_themes
             exit 0
@@ -64,6 +176,10 @@ while [[ $# -gt 0 ]]; do
             print_help
             exit 0
             ;;
+        --window-id*|--root)
+            # Accept screensaver runner arguments gracefully
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
             print_help
@@ -71,6 +187,10 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ -z "$THEME" ]]; then
+    THEME=$(rotate_startup_theme)
+fi
 
 PARAMS=()
 [[ -n "$THEME" ]] && PARAMS+=("theme=${THEME}")

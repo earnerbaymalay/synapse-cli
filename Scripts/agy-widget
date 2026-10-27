@@ -11,6 +11,29 @@ import shutil
 import urllib.request
 import subprocess
 import argparse
+import re
+
+try:
+    import wcwidth
+    def vis_len(text: str) -> int:
+        clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', text)
+        w = wcwidth.wcswidth(clean)
+        return w if w >= 0 else len(clean)
+except ImportError:
+    import unicodedata
+    def vis_len(text: str) -> int:
+        clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', text)
+        total = 0
+        for c in clean:
+            if c in ('\u200d', '\ufe0f', '\ufe0e'):
+                continue
+            eaw = unicodedata.east_asian_width(c)
+            code = ord(c)
+            if eaw in ('W', 'F') or (0x1F300 <= code <= 0x1FAFF) or (0x2600 <= code <= 0x27BF):
+                total += 2
+            else:
+                total += 1
+        return total
 
 # Catppuccin Mocha Palette (ANSI 24-bit Truecolor)
 MAUVE   = "\033[38;2;203;166;247m"
@@ -149,54 +172,105 @@ def get_telemetry():
         data = json.loads(req.read().decode())
         models = [m.get("name", "").split(":")[0] for m in data.get("models", [])]
         if models:
-            ollama_badge = f"{MAUVE}🧠 {models[0]} (Warm){RESET}"
+            ollama_badge = f"{MAUVE}🧠 {models[0]}{RESET}"
         else:
-            ollama_badge = f"{YELLOW}🧠 Ollama (Standby){RESET}"
+            ollama_badge = f"{YELLOW}🧠 Standby{RESET}"
     except Exception:
-        ollama_badge = f"{RED}🧠 Ollama (Off){RESET}"
+        ollama_badge = f"{RED}🧠 Off{RESET}"
 
     return [mac_badge, dot_badge, stealth_badge, throttled_badge, ollama_badge]
 
 
 def print_banner():
     badges = get_telemetry()
-    badge_str = f" {DIM}│{RESET} ".join(badges)
+    sep = f" {DIM}│{RESET} "
+    title = "🤖 AI CLI Workstation & Antigravity Suite"
     
-    print(f"{MAUVE}╭─ 🤖 AI CLI Workstation & Antigravity Suite ────────────────────────────────────────╮{RESET}")
-    print(f"{MAUVE}│{RESET} {badge_str} {MAUVE}│{RESET}")
-    print(f"{MAUVE}├────────────────────────────────────────────────────────────────────────────────────┤{RESET}")
-    print(f"{MAUVE}│{RESET} {BOLD}{SAPPHIRE}Agents:{RESET} {MAUVE}agy{RESET} · {BLUE}claude{RESET} · {TEAL}oterm{RESET}  {DIM}│{RESET} {BOLD}{SAPPHIRE}Query:{RESET} {YELLOW}? \"prompt\"{RESET} · {YELLOW}ask-qwen{RESET} · {YELLOW}ai{RESET}           {MAUVE}│{RESET}")
-    print(f"{MAUVE}│{RESET} {BOLD}{SAPPHIRE}Tools:{RESET}  {GREEN}lab{RESET} (audit/lines) · {GREEN}cc{RESET} (dash) · {PEACH}lg{RESET} · {PEACH}venv{RESET} · {MAUVE}agy-palette{RESET} (Rofi) {MAUVE}│{RESET}")
-    print(f"{MAUVE}╰─ {SUBTEXT}Type {BOLD}{MAUVE}agy-palette{RESET}{SUBTEXT} for GUI palette or {BOLD}{MAUVE}ai help{RESET}{SUBTEXT} for categorized command cheat-sheet ─╯{RESET}")
+    # Check terminal width (default fallback to 100 cols for standard Kitty)
+    term_cols = shutil.get_terminal_size((100, 24)).columns
+    
+    single_line_badges = sep.join(badges)
+    single_line_total_width = vis_len(single_line_badges) + 4
+    
+    if term_cols >= single_line_total_width:
+        badge_rows = [single_line_badges]
+        agents = f"{BOLD}{SAPPHIRE}Agents:{RESET} {MAUVE}agy{RESET} · {BLUE}claude{RESET} · {TEAL}oterm{RESET}  {DIM}│{RESET} {BOLD}{SAPPHIRE}Query:{RESET} {YELLOW}? \"prompt\"{RESET} · {YELLOW}ask-qwen{RESET} · {YELLOW}ai{RESET}"
+        tools = f"{BOLD}{SAPPHIRE}Tools:{RESET}  {GREEN}lab{RESET} (audit/lines) · {GREEN}cc{RESET} (dash) · {PEACH}lg{RESET} · {PEACH}venv{RESET} · {MAUVE}agy-palette{RESET} (Rofi)"
+        footer = f"Type {BOLD}{MAUVE}agy-palette{RESET}{SUBTEXT} for GUI palette or {BOLD}{MAUVE}ai help{RESET}{SUBTEXT} for command cheat-sheet"
+    else:
+        badge_rows = [
+            sep.join(badges[:3]),
+            sep.join(badges[3:])
+        ]
+        agents = f"{BOLD}{SAPPHIRE}Agents:{RESET} {MAUVE}agy{RESET} · {BLUE}claude{RESET} · {TEAL}oterm{RESET}  {DIM}│{RESET} {BOLD}{SAPPHIRE}Query:{RESET} {YELLOW}? \"prompt\"{RESET} · {YELLOW}ask-qwen{RESET} · {YELLOW}ai{RESET}"
+        tools = f"{BOLD}{SAPPHIRE}Tools:{RESET}  {GREEN}lab{RESET} · {GREEN}cc{RESET} · {PEACH}lg{RESET} · {PEACH}venv{RESET} · {MAUVE}agy-palette{RESET} (Rofi)"
+        footer = f"Type {BOLD}{MAUVE}agy-palette{RESET}{SUBTEXT} for GUI or {BOLD}{MAUVE}ai help{RESET}{SUBTEXT} for command reference"
+
+    content_candidates = badge_rows + [agents, tools]
+    content_max = max(vis_len(c) for c in content_candidates)
+    
+    # Calculate uniform inner width
+    inner_width = max(content_max, vis_len(title) + 4, vis_len(footer) + 4)
+    if term_cols > 10:
+        inner_width = min(inner_width, term_cols - 4)
+
+    def pad_line(content: str) -> str:
+        v = vis_len(content)
+        pad = max(0, inner_width - v)
+        return f"{MAUVE}│{RESET} {content}{' ' * pad} {MAUVE}│{RESET}"
+
+    top_dashes = max(1, inner_width - vis_len(title) - 1)
+    bot_dashes = max(1, inner_width - vis_len(footer) - 1)
+
+    print(f"{MAUVE}╭─ {RESET}{BOLD}{title}{RESET} {MAUVE}{'─' * top_dashes}╮{RESET}")
+    for r in badge_rows:
+        print(pad_line(r))
+    print(f"{MAUVE}├{'─' * (inner_width + 2)}┤{RESET}")
+    print(pad_line(agents))
+    print(pad_line(tools))
+    print(f"{MAUVE}╰─ {SUBTEXT}{footer}{RESET} {MAUVE}{'─' * bot_dashes}╯{RESET}")
 
 
 def print_full():
     badges = get_telemetry()
-    badge_str = f" {DIM}│{RESET} ".join(badges)
-    term_width = min(shutil.get_terminal_size((92, 24)).columns, 100)
-    term_width = max(term_width, 88)
+    sep = f" {DIM}│{RESET} "
+    badge_str = sep.join(badges)
+    term_width = shutil.get_terminal_size((96, 24)).columns
+    term_width = max(term_width, 92)
     line_inner = term_width - 2
 
     header = "🌌 ANTIGRAVITY COMMAND PALETTE & SYSTEM REFERENCE"
+    header_vlen = vis_len(header)
+    h_pad_left = max(0, (line_inner - header_vlen) // 2)
+    h_pad_right = max(0, line_inner - header_vlen - h_pad_left)
+
+    badge_vlen = vis_len(badge_str)
+    b_pad_left = max(0, (line_inner - badge_vlen) // 2)
+    b_pad_right = max(0, line_inner - badge_vlen - b_pad_left)
+
     print(f"{MAUVE}╔{'═' * line_inner}╗{RESET}")
-    print(f"{MAUVE}║{RESET}{BOLD}{MAUVE}{header.center(line_inner)}{RESET}{MAUVE}║{RESET}")
-    print(f"{MAUVE}║{RESET}{' ' * ((line_inner - 74)//2)}{badge_str}{' ' * ((line_inner - 74 + 1)//2)}{MAUVE}║{RESET}")
+    print(f"{MAUVE}║{RESET}{' ' * h_pad_left}{BOLD}{MAUVE}{header}{RESET}{' ' * h_pad_right}{MAUVE}║{RESET}")
+    print(f"{MAUVE}║{RESET}{' ' * b_pad_left}{badge_str}{' ' * b_pad_right}{MAUVE}║{RESET}")
     print(f"{MAUVE}╠{'═' * line_inner}╣{RESET}")
 
     for cat in COMMAND_CATEGORIES:
-        print(f"{MAUVE}║{RESET}  {BOLD}{cat['color']}{cat['category']}{RESET}{' ' * (line_inner - len(cat['category']) - 4)}{MAUVE}║{RESET}")
+        cat_vlen = vis_len(cat['category'])
+        cat_pad = max(0, line_inner - cat_vlen - 2)
+        print(f"{MAUVE}║{RESET}  {BOLD}{cat['color']}{cat['category']}{RESET}{' ' * cat_pad}{MAUVE}║{RESET}")
         for cmd, desc in cat["items"]:
             cmd_fmt = f"{BOLD}{SAPPHIRE}{cmd:<24}{RESET}"
             desc_fmt = f"{TEXT}{desc}{RESET}"
-            # Calculate visible width
-            visible_len = 24 + len(desc) + 4
+            visible_len = vis_len(f"    {cmd:<24} {desc}")
             padding = max(0, line_inner - visible_len)
             print(f"{MAUVE}║{RESET}    {cmd_fmt} {desc_fmt}{' ' * padding}{MAUVE}║{RESET}")
         print(f"{MAUVE}║{' ' * line_inner}║{RESET}")
 
     footer_hint = "Run 'command-center -w' for live metrics | 'agy-palette' for GUI picker"
+    f_vlen = vis_len(footer_hint)
+    f_pad_left = max(0, (line_inner - f_vlen) // 2)
+    f_pad_right = max(0, line_inner - f_vlen - f_pad_left)
     print(f"{MAUVE}╠{'═' * line_inner}╣{RESET}")
-    print(f"{MAUVE}║{RESET}{SUBTEXT}{footer_hint.center(line_inner)}{RESET}{MAUVE}║{RESET}")
+    print(f"{MAUVE}║{RESET}{' ' * f_pad_left}{SUBTEXT}{footer_hint}{RESET}{' ' * f_pad_right}{MAUVE}║{RESET}")
     print(f"{MAUVE}╚{'═' * line_inner}╝{RESET}")
 
 

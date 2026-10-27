@@ -49,13 +49,19 @@ ps2-startup --window
 # Interactive real-time WebGL/Canvas kiosk mode in Chromium
 ps2-startup --web
 
-# Check autostart status & video metrics
+# Check system boot & autostart status & video metrics
 ps2-startup --status
 
-# Install as XFCE session login autostart
+# Install as system startup boot animation (SDDM Xsetup before login)
+ps2-startup --install-system-boot
+
+# Remove system startup boot animation
+ps2-startup --remove-system-boot
+
+# Install as XFCE user session login autostart
 ps2-startup --install-autostart
 
-# Disable XFCE session login autostart
+# Disable XFCE user session login autostart
 ps2-startup --remove-autostart
 
 # Rebuild / re-render video from source across 8 CPU threads
