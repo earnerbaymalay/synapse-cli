@@ -22,3 +22,8 @@ lab-ap-credentials.txt
 # Session caches
 .cache/
 .session/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+uv.lock

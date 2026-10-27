@@ -1,0 +1,59 @@
+---
+name: audio-engineer
+description: >-
+  Auto-invoke whenever the user is configuring, troubleshooting, switching, or optimizing Linux audio, PipeWire, WirePlumber, Bluetooth codecs (A2DP SBC-XQ), headphones, USB headsets, or external amplifier setups on EndeavourOS.
+---
+
+# Audio Engineer Skill & Linux Sound Architecture
+
+Specialized system skill for managing sound devices, audio routing, latency tuning, and hardware integration on EndeavourOS (Dell Latitude 7490).
+
+---
+
+## 1. Hardware Audio Inventory
+
+| Device / Node | Type | Default Profile & Port | Key Controls |
+| :--- | :--- | :--- | :--- |
+| **Q1 Bluetooth Receiver** (`33:00:1F:72:86:60`) | A2DP Stereo Receiver | Profile: `a2dp-sink` / `a2dp-sink-sbc_xq`<br/>Codec: SBC-XQ stereo (~450-550 kbps) | `q1-mode music`<br/>`wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.80` |
+| **Built-in Audio Analog Stereo** (`pci-0000_00_1f.3`) | ALC3246 Analog Duplex | Port: `analog-output-headphones` (3.5mm jack)<br/>Port: `analog-output-speaker` (Internal speakers) | `pactl set-sink-port alsa_output.pci-0000_00_1f.3.analog-stereo analog-output-headphones` |
+| **HyperX Cloud Alpha S** (`usb-Kingston...`) | USB Gaming Headset | 48kHz 16-bit Stereo Duplex | `pw-metadata 0 default.audio.sink '{"name":"alsa_output.usb-Kingston_HyperX_Cloud_Alpha_S_000000000001-00.analog-stereo"}'` |
+
+---
+
+## 2. Core Audio Rules & Feedback Prevention
+
+1. **No Microphone Feedback**:
+   - The Q1 Bluetooth device must **always** remain in `A2DP` music mode (`q1-mode music`).
+   - Never activate HFP/HSP voice profiles on Q1 when connected to the amplifier.
+   - WirePlumber rule `/home/ebaymlay/.config/wireplumber/wireplumber.conf.d/52-bluez-audio.conf` suppresses HFP auto-switching.
+   - EasyEffects must maintain `listenToMic = false` (mic monitoring strictly disabled).
+2. **DSP Buffer Protection**:
+   - Streaming over Bluetooth A2DP to budget chipsets (JieLi AC696N) is vulnerable to buffer underruns if heavy multi-band DSP chains are inline.
+   - If audio stutters or drops out, bypass intermediate filter sinks and connect streams directly to `bluez_output.*`.
+3. **Gain Staging Rules**:
+   - Master Linux Sink Volume: **80% - 85%** (`wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.80`).
+   - Client Stream Volume (Spotify): **100%** (`pactl set-sink-input-volume <ID> 100%`).
+   - Physical Amp Volume Knob: Master room volume control.
+
+---
+
+## 3. Quick Command Reference
+
+```bash
+# Inspect graph and active sinks/sources
+wpctl status
+
+# Switch to Q1 Bluetooth A2DP
+q1-mode music
+
+# Switch to 3.5mm Laptop Headphone Jack
+pactl set-sink-port alsa_output.pci-0000_00_1f.3.analog-stereo analog-output-headphones
+pw-metadata 0 default.audio.sink '{"name":"alsa_output.pci-0000_00_1f.3.analog-stereo"}'
+
+# Switch to USB Headset
+pw-metadata 0 default.audio.sink '{"name":"alsa_output.usb-Kingston_HyperX_Cloud_Alpha_S_000000000001-00.analog-stereo"}'
+
+# Interactive UI audio switcher
+audio-switch
+```
+EOF

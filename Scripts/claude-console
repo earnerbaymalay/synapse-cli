@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Claude side console: live feed (top) + input pane (bottom) in a kitty window via tmux.
+set -euo pipefail
+DIR="${XDG_STATE_HOME:-$HOME/.local/state}/claude-console"
+mkdir -p "$DIR"; touch "$DIR/feed.log"
+if [[ "${1:-}" == "--inner" ]]; then
+    tmux new-session -d -s claude-console "printf '\033]2;Claude Console\007'; tail -n 200 -F '$DIR/feed.log'"
+    tmux split-window -v -l 5 -t claude-console console-inbox
+    tmux set -t claude-console status off
+    exec tmux attach -t claude-console
+fi
+tmux has-session -t claude-console 2>/dev/null && tmux kill-session -t claude-console
+setsid -f kitty --title "Claude Console" -o initial_window_width=760 -o initial_window_height=520 \
+    -o remember_window_size=no "$0" --inner >/dev/null 2>&1

@@ -8,6 +8,12 @@ description: >-
 
 This skill provides comprehensive architectural context and guidelines for working on this machine (`ebaymlay7490`).
 
+> [!IMPORTANT]
+> **Configuration Snapshot Synchronization**: Whenever you modify system configurations, dotfiles, desktop settings, packages, or developer tooling, you must run `omega-snapshot` to back up and sync the change to the public `omega-desktop` repository:
+> ```bash
+> ~/omega-desktop/bin/omega-snapshot "<brief description of change>"
+> ```
+
 ---
 
 ## 1. Hardware & System Architecture
