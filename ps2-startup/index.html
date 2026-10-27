@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PlayStation 2 // XFCE 4.20 Startup Visuals</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000208;
+      cursor: none;
+      user-select: none;
+    }
+    #viewport {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    #hud-hint {
+      position: absolute;
+      bottom: 24px;
+      left: 36px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      color: rgba(148, 163, 184, 0.45);
+      text-transform: uppercase;
+      pointer-events: none;
+      transition: opacity 2s ease;
+    }
+  </style>
+</head>
+<body>
+  <div id="viewport">
+    <canvas id="canvas" width="1920" height="1080"></canvas>
+  </div>
+  <div id="hud-hint">[SPACE] RESTART // [F] FULLSCREEN // [ESC] QUIT</div>
+
+  <script src="./ps2_engine.js"></script>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const hint = document.getElementById('hud-hint');
+
+    setTimeout(() => { hint.style.opacity = '0'; }, 4000);
+
+    let startTime = null;
+    let isPlaying = true;
+
+    function loop(timestamp) {
+      if (!startTime) startTime = timestamp;
+      const elapsed = (timestamp - startTime) / 1000.0;
+      const curT = elapsed % (DURATION + 1.0);
+
+      renderPS2Frame(ctx, curT);
+
+      if (isPlaying) {
+        requestAnimationFrame(loop);
+      }
+    }
+    requestAnimationFrame(loop);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        startTime = performance.now();
+        if (!isPlaying) {
+          isPlaying = true;
+          requestAnimationFrame(loop);
+        }
+      } else if (e.code === 'KeyF') {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+        } else {
+          document.exitFullscreen();
+        }
+      } else if (e.code === 'Escape' || e.code === 'KeyQ') {
+        window.close();
+      }
+    });
+  </script>
+</body>
+</html>

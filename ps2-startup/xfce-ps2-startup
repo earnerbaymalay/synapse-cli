@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# xfce-ps2-startup — PlayStation 2 Inspired XFCE Startup Video Suite
+# Replaces / supplements desktop boot with a custom-engineered PS2 BIOS sequence:
+# Monolithic crystal towers, atmospheric void, ethereal choir/chimes, and XFCE 4.20 reveal.
+# ==============================================================================
+set -euo pipefail
+
+# Resolve canonical directory of this script, following symlinks if necessary
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+BASE_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+
+VIDEO_FILE="$BASE_DIR/ps2_xfce_startup.mp4"
+HTML_INDEX="$BASE_DIR/index.html"
+INPUT_CONF="$BASE_DIR/input.conf"
+AUTOSTART_FILE="$HOME/.config/autostart/ps2-xfce-startup.desktop"
+LOCK_FILE="/tmp/ps2_startup.lock"
+
+# Help message
+show_help() {
+    cat << 'EOF'
+======================================================================
+  🎮 PlayStation 2 // XFCE 4.20 Startup Sequence Suite
+======================================================================
+Usage: ps2-startup [OPTIONS]
+
+Options:
+  --play             (Default) Launch fullscreen PS2 animated startup via mpv
+  --window           Launch in windowed preview mode (1280x720)
+  --web              Launch real-time interactive Three.js WebGL engine in Chromium
+  --install-autostart Register as XFCE session startup (plays seamlessly at login)
+  --remove-autostart Disable XFCE session startup
+  --status           Show autostart status and video file metadata
+  --rebuild          Re-render and re-encode the MP4 animation from source
+  -h, --help         Show this help message
+
+Interactive Controls during playback:
+  [ESC] / [Q] / [Click] Instantly skip startup animation to desktop
+  [SPACE]               Pause / Resume animation
+  [ENTER]               Skip to desktop
+======================================================================
+EOF
+}
+
+# Check single instance to prevent overlapping startup audio/video
+check_lock() {
+    exec 200>"$LOCK_FILE"
+    if ! flock -n 200; then
+        echo "[!] PS2 startup animation is already currently active."
+        exit 0
+    fi
+}
+
+play_video() {
+    local fullscreen_flag="--fs"
+    local geometry_flag=""
+    local ontop_flag="--ontop"
+    
+    if [[ "${1:-}" == "--window" ]]; then
+        fullscreen_flag="--no-fs"
+        geometry_flag="--geometry=1280x720"
+        ontop_flag="--no-ontop"
+    fi
+
+    if [[ ! -f "$VIDEO_FILE" ]]; then
+        echo "[!] Video file not found: $VIDEO_FILE"
+        echo "[*] Triggering automated build pipeline..."
+        rebuild_video
+    fi
+
+    check_lock
+
+    # Ensure display environment is present
+    if [[ -z "${DISPLAY:-}" ]]; then
+        export DISPLAY=:0.0
+    fi
+
+    local input_arg=()
+    if [[ -f "$INPUT_CONF" ]]; then
+        input_arg=("--input-conf=$INPUT_CONF")
+    fi
+
+    # Launch mpv with GPU VA-API hardware acceleration & optimal low-latency flags
+    local err_tmp
+    err_tmp=$(mktemp /tmp/ps2_startup_err.XXXXXX)
+
+    if ! mpv \
+        "$fullscreen_flag" \
+        $geometry_flag \
+        "$ontop_flag" \
+        "${input_arg[@]}" \
+        --no-terminal \
+        --no-osc \
+        --no-osd-bar \
+        --cursor-autohide=always \
+        --vo=gpu \
+        --hwdec=auto-safe \
+        --profile=fast \
+        --force-window=immediate \
+        --on-all-workspaces \
+        --keep-open=no \
+        --title="PS2 XFCE Startup" \
+        "$VIDEO_FILE" 2>"$err_tmp" >/dev/null; then
+        local ret=$?
+        if [[ -s "$err_tmp" && -t 1 ]]; then
+            echo "[!] mpv startup playback failed with exit code $ret:" >&2
+            cat "$err_tmp" >&2
+        fi
+        rm -f "$err_tmp"
+        exit "$ret"
+    fi
+    rm -f "$err_tmp"
+}
+
+play_web() {
+    if command -v chromium >/dev/null 2>&1; then
+        exec chromium \
+            --app="file://${HTML_INDEX}" \
+            --kiosk \
+            --no-first-run \
+            --disable-default-apps \
+            >/dev/null 2>&1
+    else
+        xdg-open "file://${HTML_INDEX}" >/dev/null 2>&1
+    fi
+}
+
+install_autostart() {
+    mkdir -p "$(dirname "$AUTOSTART_FILE")"
+    cat > "$AUTOSTART_FILE" << EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=PlayStation 2 XFCE Startup
+Comment=Iconic PlayStation 2 inspired animated boot sequence for XFCE 4.20
+Exec=$HOME/.local/bin/ps2-startup --play
+Terminal=false
+StartupNotify=false
+OnlyShowIn=XFCE;
+X-XFCE-Autostart-Priority=1
+X-XFCE-Autostart-enabled=true
+EOF
+    chmod +x "$AUTOSTART_FILE"
+    echo "[✓] Successfully installed XFCE autostart service: $AUTOSTART_FILE"
+    echo "[✓] PS2 animation will now play automatically upon every login!"
+}
+
+remove_autostart() {
+    if [[ -f "$AUTOSTART_FILE" ]]; then
+        rm -f "$AUTOSTART_FILE"
+        echo "[✓] Successfully removed XFCE autostart: $AUTOSTART_FILE"
+    else
+        echo "[!] Autostart entry was not installed."
+    fi
+}
+
+show_status() {
+    echo "======================================================================"
+    echo "  PS2 XFCE 4.20 Startup Status Report"
+    echo "======================================================================"
+    if [[ -f "$AUTOSTART_FILE" ]]; then
+        echo -e "  Autostart: \033[1;32mACTIVE\033[0m ($AUTOSTART_FILE)"
+    else
+        echo -e "  Autostart: \033[1;33mNOT INSTALLED\033[0m (Run --install-autostart to enable)"
+    fi
+
+    if [[ -f "$VIDEO_FILE" ]]; then
+        local size
+        size=$(du -h "$VIDEO_FILE" | cut -f1)
+        echo -e "  Video:     \033[1;32mREADY\033[0m ($VIDEO_FILE, $size)"
+        ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,codec_name -of csv=p=0 "$VIDEO_FILE" | awk -F',' '{printf "  Resolution: %sx%s @ %s (%s)\n", $2, $3, $4, $1}'
+    else
+        echo -e "  Video:     \033[1;31mMISSING\033[0m (Run --rebuild to generate)"
+    fi
+    echo "======================================================================"
+}
+
+rebuild_video() {
+    echo "[*] Rebuilding PS2 XFCE startup video via multi-core parallel engine..."
+    uv run --with pycairo,numpy python3 "$BASE_DIR/render_ps2_video.py"
+}
+
+# Command line parsing
+ACTION="play"
+case "${1:-}" in
+    --play)
+        ACTION="play"
+        ;;
+    --window)
+        ACTION="window"
+        ;;
+    --web)
+        ACTION="web"
+        ;;
+    --install-autostart)
+        ACTION="install"
+        ;;
+    --remove-autostart)
+        ACTION="remove"
+        ;;
+    --status)
+        ACTION="status"
+        ;;
+    --rebuild)
+        ACTION="rebuild"
+        ;;
+    -h|--help)
+        show_help
+        exit 0
+        ;;
+    "")
+        ACTION="play"
+        ;;
+    *)
+        echo "[!] Unknown option: $1"
+        show_help
+        exit 1
+        ;;
+esac
+
+case "$ACTION" in
+    play)
+        play_video
+        ;;
+    window)
+        play_video --window
+        ;;
+    web)
+        play_web
+        ;;
+    install)
+        install_autostart
+        ;;
+    remove)
+        remove_autostart
+        ;;
+    status)
+        show_status
+        ;;
+    rebuild)
+        rebuild_video
+        ;;
+esac

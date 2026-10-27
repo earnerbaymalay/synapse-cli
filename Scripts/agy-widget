@@ -96,6 +96,7 @@ COMMAND_CATEGORIES = [
         "color": PEACH,
         "items": [
             ("agy-palette", "GUI Command Palette w/ Claude Code interchange"),
+            ("ps2-startup [--window]", "PlayStation 2 // XFCE 4.20 startup video"),
             ("screensaver [-p]", "4K fluid, geomorphic & cyber glitch screensaver"),
             ("Super Key", "macOS-style XFCE Launchpad (toggle)"),
             ("font-tune", "Typography, hinting & subpixel tuner"),

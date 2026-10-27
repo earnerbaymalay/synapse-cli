@@ -11,6 +11,8 @@ build/
 *.tar.gz
 *.iso
 *.img
+*.webm
+raw_capture.webm
 
 # Captures & sensitive logs
 *.pcap

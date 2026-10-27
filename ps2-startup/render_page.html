@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PS2 XFCE Startup Video Capture</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html { width: 1920px; height: 1080px; overflow: hidden; background: #000208; }
+    #canvas { display: block; width: 1920px; height: 1080px; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="1920" height="1080"></canvas>
+  <script src="./ps2_engine.js"></script>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    async function record() {
+      console.log('[*] Initializing MediaRecorder for 1080p60 capture...');
+      const stream = canvas.captureStream(60);
+      const recorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9',
+        videoBitsPerSecond: 28000000
+      });
+
+      const chunks = [];
+      recorder.ondataavailable = e => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        console.log('[*] Capture complete! Uploading WebM buffer...');
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        await fetch('/upload_video', { method: 'POST', body: blob });
+        console.log('[✓] Upload finished!');
+      };
+
+      recorder.start(100);
+
+      const totalFrames = Math.floor(DURATION * 60);
+      let frame = 0;
+
+      function step() {
+        const t = frame / 60.0;
+        renderPS2Frame(ctx, t);
+        frame++;
+
+        if (frame <= totalFrames) {
+          requestAnimationFrame(step);
+        } else {
+          recorder.stop();
+        }
+      }
+
+      requestAnimationFrame(step);
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('record') === '1') {
+      setTimeout(record, 200);
+    } else {
+      let sT = null;
+      function loop(ts) {
+        if (!sT) sT = ts;
+        const curT = ((ts - sT) / 1000.0) % (DURATION + 1.0);
+        renderPS2Frame(ctx, curT);
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(loop);
+    }
+  </script>
+</body>
+</html>
