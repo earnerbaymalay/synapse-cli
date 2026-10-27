@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# screensaver — Subtle 4K / Fluid / Chromatic / Geomorphic / Glitch Screensaver Suite
+# Inspo from Omarchy cyber/developer aesthetic
+set -euo pipefail
+
+SCREENSAVER_DIR="$HOME/Desktop/AI CLI WORK/Screensavers"
+INDEX_FILE="$SCREENSAVER_DIR/index.html"
+
+THEME=""
+PREVIEW=false
+SCREENSAVER_MODE=true
+
+print_help() {
+    cat << 'EOF'
+Omni-Screensaver // Y2K Cybernetic & Geomorphic Suite
+Usage: screensaver [options]
+
+Options:
+  -p, --preview      Launch in windowed preview mode (1100x680)
+  -t, --theme <1-5>  Start directly with specific theme:
+                       1: Liquid Chromium (Y2K fluid mercury waves)
+                       2: Geomorphic Tesseract (Sacred 4D wireframe hypercube)
+                       3: Cyber Glitch (Horizon grid & digital raster tearing)
+                       4: Chromatic Aurora (Subtle fluid multi-harmonic spectral ribbons)
+                       5: Omarchy ASCII (Monospace kinetic telemetry emblem)
+  -l, --list         List available themes and visual styles
+  -h, --help         Show this help message
+
+Controls while running:
+  [1-5]              Directly switch theme
+  [SPACE]            Cycle to next theme
+  [G]                Trigger glitch pulse
+  [H]                Toggle HUD information badge
+  [F]                Toggle Fullscreen
+  [ESC] / [Q]        Exit screensaver
+EOF
+}
+
+list_themes() {
+    echo -e "\033[1;38;2;203;166;247m── 🌌 Omni-Screensaver Theme Catalog (Omarchy Inspo) ──\033[0m"
+    echo -e "  \033[1;38;2;243;139;168m1. Liquid Chromium\033[0m      Y2K viscous mercury waves with RGB chromatic dispersion"
+    echo -e "  \033[1;38;2;180;190;254m2. Geomorphic Tesseract\033[0m 4D rotating wireframe hypercube with neon depth glow"
+    echo -e "  \033[1;38;2;116;199;236m3. Cyber Glitch\033[0m         Retro-futuristic horizon grid with subtle raster tearing"
+    echo -e "  \033[1;38;2;148;226;213m4. Chromatic Aurora\033[0m     Minimalist, ultra-subtle fluid nebula ribbons"
+    echo -e "  \033[1;38;2;166;227;161m5. Omarchy ASCII\033[0m        Pure monospace kinetic emblem & live system telemetry"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -p|--preview)
+            PREVIEW=true
+            SCREENSAVER_MODE=false
+            shift
+            ;;
+        -t|--theme)
+            THEME="$2"
+            shift 2
+            ;;
+        -l|--list)
+            list_themes
+            exit 0
+            ;;
+        -h|--help)
+            print_help
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            print_help
+            exit 1
+            ;;
+    esac
+done
+
+QUERY_PARAMS=""
+if [[ -n "$THEME" ]]; then
+    QUERY_PARAMS="?theme=${THEME}"
+fi
+if [[ "$SCREENSAVER_MODE" == true ]]; then
+    QUERY_PARAMS="${QUERY_PARAMS:+${QUERY_PARAMS}&}screensaver=1"
+fi
+
+TARGET_URL="file://${INDEX_FILE}${QUERY_PARAMS}"
+
+# Detect browser runtime (Chromium preferred for hardware accelerated WebGL/canvas)
+if command -v chromium >/dev/null 2>&1; then
+    if [[ "$PREVIEW" == true ]]; then
+        exec chromium \
+            --app="${TARGET_URL}" \
+            --window-size=1100,680 \
+            --disable-extensions \
+            --no-first-run \
+            --disable-default-apps \
+            >/dev/null 2>&1
+    else
+        exec chromium \
+            --kiosk \
+            --app="${TARGET_URL}" \
+            --disable-extensions \
+            --no-first-run \
+            --disable-default-apps \
+            --disable-pinch \
+            --overscroll-history-navigation=0 \
+            >/dev/null 2>&1
+    fi
+elif command -v falkon >/dev/null 2>&1; then
+    exec falkon "${TARGET_URL}" >/dev/null 2>&1
+else
+    xdg-open "${TARGET_URL}" >/dev/null 2>&1
+fi

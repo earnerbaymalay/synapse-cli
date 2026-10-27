@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Omni-Screensaver // Y2K Geomorphic Cybernetic</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
+    body, html { width: 100%; height: 100%; background: #0b0b12; font-family: 'JetBrains Mono', 'Fira Code', 'Inter', monospace; color: #cdd6f4; user-select: none; cursor: none; }
+    #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    canvas { display: block; width: 100%; height: 100%; }
+
+    /* HUD overlay */
+    #hud {
+      position: absolute;
+      top: 24px;
+      left: 28px;
+      pointer-events: none;
+      z-index: 100;
+      opacity: 1;
+      transition: opacity 1.2s ease-out;
+    }
+    #hud.faded { opacity: 0; }
+    .badge-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .tag {
+      background: rgba(203, 166, 247, 0.12);
+      border: 1px solid rgba(203, 166, 247, 0.35);
+      color: #cba6f7;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .theme-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f5e0dc;
+      letter-spacing: 0.18em;
+      margin-top: 6px;
+      text-shadow: 0 0 12px rgba(203, 166, 247, 0.6);
+    }
+    .hints {
+      font-size: 10px;
+      color: #6c7086;
+      margin-top: 6px;
+      letter-spacing: 0.08em;
+    }
+
+    /* Subtle scanline overlay */
+    #scanlines {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      background: linear-gradient(rgba(18, 16, 26, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+      background-size: 100% 4px;
+      z-index: 50;
+      opacity: 0.65;
+    }
+    /* Vignette */
+    #vignette {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      box-shadow: inset 0 0 100px rgba(0,0,0,0.85);
+      z-index: 51;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <canvas id="view"></canvas>
+  </div>
+  <div id="scanlines"></div>
+  <div id="vignette"></div>
+
+  <div id="hud">
+    <div class="badge-bar">
+      <span class="tag">OMARCHY // CYBER-SYS</span>
+      <span id="fps" style="color: #a6e3a1;">60 FPS</span>
+      <span id="res" style="color: #89b4fa;">4K UHD</span>
+    </div>
+    <div class="theme-title" id="theme-name">1. LIQUID CHROMIUM // Y2K MERCURY</div>
+    <div class="hints">[1-5] Switch Theme · [SPACE] Cycle · [G] Glitch Pulse · [H] HUD · [F] Fullscreen · [ESC] Exit</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('view');
+    const ctx = canvas.getContext('2d');
+    const hud = document.getElementById('hud');
+    const themeNameEl = document.getElementById('theme-name');
+    const fpsEl = document.getElementById('fps');
+    const resEl = document.getElementById('res');
+
+    let width = 0, height = 0, dpr = 1;
+    let currentTheme = 1;
+    const TOTAL_THEMES = 5;
+    let t = 0;
+    let glitchIntensity = 0;
+    let glitchDuration = 0;
+    let hudTimer = null;
+    let exitOnMove = false;
+    let initialMouseMoveIgnored = 0;
+
+    const THEMES = [
+      { id: 1, name: "1. LIQUID CHROMIUM // Y2K MERCURY", desc: "Fluid metallic dispersion & chromatic waves" },
+      { id: 2, name: "2. GEOMORPHIC TESSERACT // HYPER-LATTICE", desc: "4D sacred wireframe geometry & neon depth" },
+      { id: 3, name: "3. CYBER GLITCH // QUANTUM HORIZON", desc: "Raster displacement, scanline tearing & cyber grid" },
+      { id: 4, name: "4. CHROMATIC AURORA // SUBTLE FLUID NEBULA", desc: "Atmospheric multi-harmonic spectral ribbons" },
+      { id: 5, name: "5. OMARCHY ASCII // KINETIC MATRIX", desc: "Programmatic monospace kinetic emblem & telemetry" }
+    ];
+
+    // Check URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('screensaver') === '1') exitOnMove = true;
+    if (urlParams.get('theme')) {
+      const paramTheme = parseInt(urlParams.get('theme'), 10);
+      if (paramTheme >= 1 && paramTheme <= TOTAL_THEMES) currentTheme = paramTheme;
+    }
+
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2); // Cap at 2 for performance on UHD 620
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+      resEl.textContent = `${width}x${height} @${dpr.toFixed(1)}x`;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function triggerHud() {
+      hud.classList.remove('faded');
+      themeNameEl.textContent = THEMES[currentTheme - 1].name;
+      clearTimeout(hudTimer);
+      hudTimer = setTimeout(() => { hud.classList.add('faded'); }, 3500);
+    }
+    triggerHud();
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // THEME 1: Liquid Chromium (Y2K Fluid Mercury)
+    // ─────────────────────────────────────────────────────────────────────────
+    function renderLiquidChrome() {
+      ctx.fillStyle = '#090812';
+      ctx.fillRect(0, 0, width, height);
+
+      const cx = width / 2;
+      const cy = height / 2;
+      const rings = 28;
+      const maxRadius = Math.hypot(cx, cy) * 0.95;
+
+      for (let i = 0; i < rings; i++) {
+        const norm = i / rings;
+        const r = norm * maxRadius;
+        const wave = Math.sin(t * 0.8 + norm * 8) * 16 * Math.cos(t * 0.4 + norm * 4);
+        const radius = r + wave;
+
+        // Chromatic split: render Red, Green, Blue offsets
+        const channels = [
+          { stroke: 'rgba(243, 139, 168, 0.16)', offset: 3 }, // Pink/Mauve
+          { stroke: 'rgba(180, 190, 254, 0.22)', offset: 0 }, // Lavender
+          { stroke: 'rgba(116, 199, 236, 0.18)', offset: -3 } // Sapphire/Cyan
+        ];
+
+        for (const ch of channels) {
+          ctx.beginPath();
+          ctx.strokeStyle = ch.stroke;
+          ctx.lineWidth = 1.6 + (1 - norm) * 2.2;
+          const points = 64;
+
+          for (let p = 0; p <= points; p++) {
+            const angle = (p / points) * Math.PI * 2;
+            const morph = Math.sin(angle * 4 + t * 0.6 + norm * 3) * (20 * norm)
+                        + Math.cos(angle * 7 - t * 0.4) * (12 * (1 - norm));
+            const pr = radius + morph + ch.offset;
+            const px = cx + Math.cos(angle) * pr;
+            const py = cy + Math.sin(angle) * pr;
+            if (p === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+      }
+
+      // Specular mercury nucleus
+      const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, 180);
+      grad.addColorStop(0, 'rgba(203, 166, 247, 0.35)');
+      grad.addColorStop(0.4, 'rgba(116, 199, 236, 0.12)');
+      grad.addColorStop(1, 'rgba(11, 11, 18, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 180, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // THEME 2: Geomorphic Tesseract (Sacred 4D Wireframe Geometry)
+    // ─────────────────────────────────────────────────────────────────────────
+    // 4D hypercube vertices (16 points in {-1, 1}^4)
+    const tesseractVertices = [];
+    for (let x = -1; x <= 1; x += 2) {
+      for (let y = -1; y <= 1; y += 2) {
+        for (let z = -1; z <= 1; z += 2) {
+          for (let w = -1; w <= 1; w += 2) {
+            tesseractVertices.push([x, y, z, w]);
+          }
+        }
+      }
+    }
+    // 32 edges connecting vertices that differ by exactly 1 coordinate
+    const tesseractEdges = [];
+    for (let i = 0; i < 16; i++) {
+      for (let j = i + 1; j < 16; j++) {
+        let diff = 0;
+        for (let k = 0; k < 4; k++) {
+          if (tesseractVertices[i][k] !== tesseractVertices[j][k]) diff++;
+        }
+        if (diff === 1) tesseractEdges.push([i, j]);
+      }
+    }
+
+    function renderGeomorphicMatrix() {
+      ctx.fillStyle = '#080811';
+      ctx.fillRect(0, 0, width, height);
+
+      const cx = width / 2;
+      const cy = height / 2;
+      const scale = Math.min(width, height) * 0.28;
+
+      // 4D rotations (XW and ZW planes)
+      const theta = t * 0.45;
+      const phi = t * 0.32;
+      const cosT = Math.cos(theta), sinT = Math.sin(theta);
+      const cosP = Math.cos(phi), sinP = Math.sin(phi);
+
+      const projected = tesseractVertices.map(v => {
+        let [x, y, z, w] = v;
+        // Rotate XW
+        const x1 = x * cosT - w * sinT;
+        const w1 = x * sinT + w * cosT;
+        // Rotate ZW
+        const z2 = z * cosP - w1 * sinP;
+        const w2 = z * sinP + w1 * cosP;
+
+        // Perspective 4D -> 3D projection
+        const dist4D = 2.4;
+        const p4 = 1 / (dist4D - w2);
+        const x3 = x1 * p4;
+        const y3 = y * p4;
+        const z3 = z2 * p4;
+
+        // Perspective 3D -> 2D
+        const dist3D = 2.8;
+        const p3 = 1 / (dist3D - z3);
+        return {
+          x: cx + x3 * p3 * scale * 2.2,
+          y: cy + y3 * p3 * scale * 2.2,
+          z: z3,
+          w: w2
+        };
+      });
+
+      // Render Chromatic edges with depth glow
+      for (const [i, j] of tesseractEdges) {
+        const p1 = projected[i];
+        const p2 = projected[j];
+        const avgDepth = (p1.z + p2.z) * 0.5;
+        const alpha = Math.max(0.12, Math.min(0.85, 0.45 + avgDepth * 0.6));
+
+        // Chromatic aberration pass
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(243, 139, 168, ${alpha * 0.4})`; // Red/Mauve fringe
+        ctx.lineWidth = 1.4;
+        ctx.moveTo(p1.x - 1.5, p1.y - 1);
+        ctx.lineTo(p2.x - 1.5, p2.y - 1);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(180, 190, 254, ${alpha * 0.9})`; // Lavender/Cyan core
+        ctx.lineWidth = 1.8;
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(116, 199, 236, ${alpha * 0.4})`; // Cyan fringe
+        ctx.lineWidth = 1.4;
+        ctx.moveTo(p1.x + 1.5, p1.y + 1);
+        ctx.lineTo(p2.x + 1.5, p2.y + 1);
+        ctx.stroke();
+      }
+
+      // Vertices nodes
+      for (const p of projected) {
+        ctx.fillStyle = '#f5e0dc';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Outer concentric sacred circles
+      ctx.strokeStyle = 'rgba(203, 166, 247, 0.12)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, scale * 1.35, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // THEME 3: Cyber Glitch (Horizon Grid & Digital Glitch Tearing)
+    // ─────────────────────────────────────────────────────────────────────────
+    function renderCyberGlitch() {
+      ctx.fillStyle = '#06060c';
+      ctx.fillRect(0, 0, width, height);
+
+      const horizon = height * 0.52;
+      const fov = 320;
+      const speed = (t * 60) % 50;
+
+      // Perspective 3D ground grid
+      ctx.lineWidth = 1.2;
+      const lines = 18;
+      for (let i = 0; i < lines; i++) {
+        const z = ((i * 50 - speed + 900) % 900) + 15;
+        const py = horizon + (fov / z) * 140;
+        if (py > height) continue;
+        const alpha = Math.min(1, (py - horizon) / (height - horizon));
+        ctx.strokeStyle = `rgba(203, 166, 247, ${alpha * 0.45})`;
+        ctx.beginPath();
+        ctx.moveTo(0, py);
+        ctx.lineTo(width, py);
+        ctx.stroke();
+      }
+
+      // Vanishing longitudinal grid lines
+      const cols = 26;
+      for (let c = -cols; c <= cols; c++) {
+        const spread = c * 75;
+        ctx.strokeStyle = 'rgba(116, 199, 236, 0.22)';
+        ctx.beginPath();
+        ctx.moveTo(width / 2, horizon);
+        ctx.lineTo(width / 2 + spread * 3.5, height);
+        ctx.stroke();
+      }
+
+      // Retro horizon neon sun / gateway
+      const sunY = horizon - 20;
+      const sunR = Math.min(width, height) * 0.16;
+      const sunGrad = ctx.createLinearGradient(0, sunY - sunR, 0, sunY + sunR);
+      sunGrad.addColorStop(0, 'rgba(243, 139, 168, 0.85)');
+      sunGrad.addColorStop(0.6, 'rgba(203, 166, 247, 0.5)');
+      sunGrad.addColorStop(1, 'rgba(11, 11, 18, 0)');
+
+      ctx.fillStyle = sunGrad;
+      ctx.beginPath();
+      ctx.arc(width / 2, sunY, sunR, Math.PI, 0, false);
+      ctx.fill();
+
+      // Horizontal sun blind slits
+      for (let s = 1; s <= 6; s++) {
+        const sy = sunY - sunR * 0.15 + s * 12;
+        ctx.fillStyle = '#06060c';
+        ctx.fillRect(width / 2 - sunR, sy, sunR * 2, 2.5 + s * 0.8);
+      }
+
+      // Digital Glitch Tearing
+      if (glitchDuration > 0 || Math.random() < 0.04) {
+        const slices = Math.floor(Math.random() * 4) + 1;
+        for (let s = 0; s < slices; s++) {
+          const sy = Math.random() * height;
+          const sh = Math.random() * 28 + 6;
+          const shift = (Math.random() - 0.5) * 45;
+
+          try {
+            const imgData = ctx.getImageData(0, Math.max(0, sy), width, Math.min(sh, height - sy));
+            ctx.putImageData(imgData, shift, sy);
+            // Draw subtle chromatic glitch bar
+            ctx.fillStyle = Math.random() < 0.5 ? 'rgba(243, 139, 168, 0.15)' : 'rgba(116, 199, 236, 0.15)';
+            ctx.fillRect(0, sy, width, sh);
+          } catch(e) {}
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // THEME 4: Chromatic Aurora (Subtle Fluid Spectral Ribbons)
+    // ─────────────────────────────────────────────────────────────────────────
+    function renderChromaticAurora() {
+      ctx.fillStyle = '#05050a';
+      ctx.fillRect(0, 0, width, height);
+
+      // Starfield dots
+      const stars = 75;
+      for (let s = 0; s < stars; s++) {
+        const sx = ((s * 197.3) % width);
+        const sy = ((s * 313.7) % (height * 0.7));
+        const sa = (Math.sin(t * 1.5 + s) + 1) * 0.35 + 0.1;
+        ctx.fillStyle = `rgba(205, 214, 244, ${sa})`;
+        ctx.fillRect(sx, sy, 1.2, 1.2);
+      }
+
+      const ribbons = 5;
+      for (let r = 0; r < ribbons; r++) {
+        const norm = r / ribbons;
+        const baseY = height * (0.35 + norm * 0.32);
+        const grad = ctx.createLinearGradient(0, baseY - 80, 0, baseY + 140);
+
+        if (r % 3 === 0) {
+          grad.addColorStop(0, 'rgba(203, 166, 247, 0)');
+          grad.addColorStop(0.5, 'rgba(203, 166, 247, 0.22)');
+          grad.addColorStop(1, 'rgba(180, 190, 254, 0)');
+        } else if (r % 3 === 1) {
+          grad.addColorStop(0, 'rgba(148, 226, 213, 0)');
+          grad.addColorStop(0.5, 'rgba(148, 226, 213, 0.18)');
+          grad.addColorStop(1, 'rgba(116, 199, 236, 0)');
+        } else {
+          grad.addColorStop(0, 'rgba(243, 139, 168, 0)');
+          grad.addColorStop(0.5, 'rgba(243, 139, 168, 0.15)');
+          grad.addColorStop(1, 'rgba(203, 166, 247, 0)');
+        }
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+
+        const steps = 40;
+        for (let s = 0; s <= steps; s++) {
+          const px = (s / steps) * width;
+          const wave1 = Math.sin(s * 0.18 + t * 0.5 + norm * 4) * 55;
+          const wave2 = Math.cos(s * 0.1 - t * 0.3 + norm * 2) * 35;
+          const py = baseY + wave1 + wave2;
+          ctx.lineTo(px, py);
+        }
+        ctx.lineTo(width, height);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // THEME 5: Omarchy Kinetic ASCII (Monospace Kinetic Telemetry)
+    // ─────────────────────────────────────────────────────────────────────────
+    const ASCII_LOGO = [
+      "   █████████  ███    ███  ███   ███  █████████     ████████  ",
+      "  ███░░░░░███░███   ░░███░███  ░███ ░███░░░░░███  ███░░░░███ ",
+      " ░███    ░░░ ░███    ░███░███  ░███ ░███    ░███ ░███   ░░░  ",
+      " ░░█████████ ░███    ░███░█████████ ░█████████   ░░████████  ",
+      "  ░░░░░░░░███░░███   ███ ░░░░░░░███ ░███░░░░░      ░░░░░░███ ",
+      "  ███    ░███ ░░░█████░    ░███ ░███ ░███        ███   ░███  ",
+      " ░░█████████    ░░███      ░░██████  █████      ░░████████   ",
+      "  ░░░░░░░░░      ░░░        ░░░░░░  ░░░░░        ░░░░░░░░    "
+    ];
+
+    function renderOmarchyAscii() {
+      ctx.fillStyle = '#07070d';
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.font = '13px "JetBrains Mono", monospace';
+      const charW = 14;
+      const charH = 20;
+      const cols = Math.floor(width / charW);
+      const rows = Math.floor(height / charH);
+
+      // Subtle background cyber telemetry rain
+      for (let r = 0; r < rows; r += 2) {
+        for (let c = 0; c < cols; c += 3) {
+          const seed = Math.sin(c * 12.3 + r * 45.6 + t * 0.4);
+          if (seed > 0.75) {
+            const glyphs = "01011001_ΔΩ∑∫≈≠√░▒▓><[]{}/*";
+            const char = glyphs[Math.floor(Math.abs(seed * 100)) % glyphs.length];
+            ctx.fillStyle = 'rgba(180, 190, 254, 0.08)';
+            ctx.fillText(char, c * charW, r * charH);
+          }
+        }
+      }
+
+      // Render Kinetic Logo in Center with Glitch Offsets
+      const logoLines = ASCII_LOGO.length;
+      const logoCols = ASCII_LOGO[0].length;
+      const startX = Math.max(20, (width - logoCols * 11) / 2);
+      const startY = (height - logoLines * 18) / 2;
+
+      ctx.font = 'bold 15px monospace';
+      for (let l = 0; l < logoLines; l++) {
+        const line = ASCII_LOGO[l];
+        let lineShift = 0;
+        if (Math.random() < 0.05) lineShift = (Math.random() - 0.5) * 16;
+
+        for (let ch = 0; ch < line.length; ch++) {
+          const char = line[ch];
+          if (char === ' ') continue;
+
+          const px = startX + ch * 11 + lineShift;
+          const py = startY + l * 18;
+          const wave = Math.sin(t * 2 + ch * 0.2 + l * 0.4);
+
+          // Chromatic glow
+          ctx.fillStyle = wave > 0 ? '#cba6f7' : '#89b4fa';
+          ctx.fillText(char, px, py);
+        }
+      }
+
+      // Floating live system telemetry banner (Omarchy / EndeavourOS style)
+      ctx.font = '11px "JetBrains Mono", monospace';
+      ctx.fillStyle = '#6c7086';
+      const sysInfo = `SYS: DELL LATITUDE 7490 // ARCH ROLLING // KERNEL BBR // DO-TLS:9.9.9.9 // FIREWALL:STEALTH // T+${t.toFixed(1)}s`;
+      ctx.fillText(sysInfo, (width - ctx.measureText(sysInfo).width) / 2, startY + logoLines * 18 + 55);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MAIN ANIMATION LOOP
+    // ─────────────────────────────────────────────────────────────────────────
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let fpsTime = lastTime;
+
+    function animate(now) {
+      const dt = (now - lastTime) * 0.001;
+      lastTime = now;
+      t += Math.min(dt, 0.1);
+
+      frameCount++;
+      if (now - fpsTime >= 1000) {
+        fpsEl.textContent = `${frameCount} FPS`;
+        frameCount = 0;
+        fpsTime = now;
+      }
+
+      if (glitchDuration > 0) glitchDuration -= dt;
+
+      switch (currentTheme) {
+        case 1: renderLiquidChrome(); break;
+        case 2: renderGeomorphicMatrix(); break;
+        case 3: renderCyberGlitch(); break;
+        case 4: renderChromaticAurora(); break;
+        case 5: renderOmarchyAscii(); break;
+      }
+
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CONTROLS & EVENT LISTENERS
+    // ─────────────────────────────────────────────────────────────────────────
+    window.addEventListener('keydown', (e) => {
+      if (e.key >= '1' && e.key <= '5') {
+        currentTheme = parseInt(e.key, 10);
+        triggerHud();
+      } else if (e.key === ' ' || e.key === 'Tab') {
+        e.preventDefault();
+        currentTheme = (currentTheme % TOTAL_THEMES) + 1;
+        triggerHud();
+      } else if (e.key.toLowerCase() === 'h') {
+        hud.classList.toggle('faded');
+      } else if (e.key.toLowerCase() === 'g') {
+        glitchDuration = 0.5;
+      } else if (e.key.toLowerCase() === 'f') {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      } else if (e.key === 'Escape' || e.key.toLowerCase() === 'q') {
+        window.close();
+      }
+    });
+
+    // Exit on mouse movement in screensaver mode
+    window.addEventListener('mousemove', () => {
+      initialMouseMoveIgnored++;
+      if (exitOnMove && initialMouseMoveIgnored > 5) {
+        window.close();
+      }
+    });
+  </script>
+</body>
+</html>

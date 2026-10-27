@@ -35,6 +35,7 @@ if [[ "$MODE" == "claude" ]]; then
     CMD_MAP["[SEC] sec-audit — Pre-commit secret audit & quality check"]="kitty --hold '$WORKSPACE_DIR/Scripts/git-security-hook.sh'"
     CMD_MAP["[KB] ai-log — Quick entry into Obsidian Daily Digest"]="COPY:ai-log \"\""
     CMD_MAP["[KB] ai-notes — Open Obsidian AI Knowledge Base"]="obsidian"
+    CMD_MAP["[UI] screensaver — 4K Fluid & Cyber Screensaver (Kiosk)"]="$WORKSPACE_DIR/Scripts/screensaver"
 else
     PROMPT="Antigravity Command Palette"
     SWITCH_KEY="[MODE] 🔁 Switch Agent Focus ➔ Claude Code Mode"
@@ -95,6 +96,8 @@ else
     CMD_MAP["[PENTEST] mitm-harvest — Intercept & harvest auth tokens"]="kitty --directory '$WORKSPACE_DIR' uv run mitmproxy -s mitmproxy-tools/token_harvester.py"
 
     # UI & Appearance
+    CMD_MAP["[UI] screensaver — 4K Fluid & Cyber Screensaver (Kiosk)"]="$WORKSPACE_DIR/Scripts/screensaver"
+    CMD_MAP["[UI] screensaver-preview — Preview screensaver in window"]="$WORKSPACE_DIR/Scripts/screensaver --preview"
     CMD_MAP["[UI] xfce-launcher-toggle — Toggle macOS Launchpad (Super Key)"]="/usr/local/bin/xfce-launcher-toggle"
     CMD_MAP["[UI] font-tune — System typography & font rendering tuner"]="kitty '$WORKSPACE_DIR/font-tune.sh'"
     CMD_MAP["[UI] set-wallpaper — 4K wallpaper picker & setter"]="kitty '$WORKSPACE_DIR/set-wallpaper.sh'"
