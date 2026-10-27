@@ -106,6 +106,8 @@ COMMAND_CATEGORIES = [
         "category": "🛠️ Development & Pentesting",
         "color": SAPPHIRE,
         "items": [
+            ("rf-lab auto | lab pentest", "Automated RF pentest & local AI security audit"),
+            ("rf-lab status | scan", "RF monitor posture & passive beacon survey"),
             ("lg", "Lazygit TUI with Catppuccin Delta diff pager"),
             ("venv", "Smart virtualenv manager (uv isolated env)"),
             ("clip | clippaste", "Fast system clipboard copy & paste"),

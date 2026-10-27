@@ -14,60 +14,43 @@ STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/screensaver"
 STATE_FILE="$STATE_DIR/theme_rotation.conf"
 mkdir -p "$STATE_DIR"
 
-get_current_boot_id() {
-    if [[ -r /proc/sys/kernel/random/boot_id ]]; then
-        cat /proc/sys/kernel/random/boot_id
-    else
-        uptime -s 2>/dev/null || date +%Y%m%d
-    fi
-}
-
 load_rotation_state() {
-    SAVED_BOOT_ID=""
     SAVED_THEME="4"
+    LAST_ACTIVATED=""
     if [[ -f "$STATE_FILE" ]]; then
         # shellcheck source=/dev/null
         source "$STATE_FILE" 2>/dev/null || true
     fi
+    if [[ "$SAVED_THEME" != "4" && "$SAVED_THEME" != "5" ]]; then
+        SAVED_THEME="4"
+    fi
 }
 
-rotate_startup_theme() {
+get_next_theme() {
     load_rotation_state
-    local current_boot
-    current_boot=$(get_current_boot_id)
-
-    if [[ "$current_boot" != "$SAVED_BOOT_ID" ]]; then
-        # New startup session! Alternate between 4 and 5
-        if [[ "$SAVED_THEME" == "4" ]]; then
-            SAVED_THEME="5"
-        else
-            SAVED_THEME="4"
-        fi
-        SAVED_BOOT_ID="$current_boot"
-        cat > "$STATE_FILE" << EOF
-SAVED_BOOT_ID="$SAVED_BOOT_ID"
-SAVED_THEME="$SAVED_THEME"
-EOF
+    if [[ "$SAVED_THEME" == "4" ]]; then
+        echo "5"
+    else
+        echo "4"
     fi
-    echo "$SAVED_THEME"
+}
+
+advance_theme() {
+    local next_theme
+    next_theme=$(get_next_theme)
+    local tmp_file="${STATE_FILE}.tmp.$$"
+    cat > "$tmp_file" << EOF
+SAVED_THEME="$next_theme"
+LAST_ACTIVATED="$(date +%Y-%m-%dT%H:%M:%S%z)"
+EOF
+    mv -f "$tmp_file" "$STATE_FILE"
+    echo "$next_theme"
 }
 
 force_rotate_theme() {
-    load_rotation_state
-    local current_boot
-    current_boot=$(get_current_boot_id)
-
-    if [[ "$SAVED_THEME" == "4" ]]; then
-        SAVED_THEME="5"
-    else
-        SAVED_THEME="4"
-    fi
-    SAVED_BOOT_ID="$current_boot"
-    cat > "$STATE_FILE" << EOF
-SAVED_BOOT_ID="$SAVED_BOOT_ID"
-SAVED_THEME="$SAVED_THEME"
-EOF
-    echo -e "\033[1;32m[✓]\033[0m Rotated screensaver theme to: \033[1;35m#${SAVED_THEME}\033[0m ($(get_theme_name "$SAVED_THEME"))"
+    local next_theme
+    next_theme=$(advance_theme)
+    echo -e "\033[1;32m[✓]\033[0m Rotated screensaver theme to: \033[1;35m#${next_theme}\033[0m ($(get_theme_name "$next_theme"))"
 }
 
 get_theme_name() {
@@ -83,23 +66,17 @@ get_theme_name() {
 
 show_status() {
     load_rotation_state
-    local current_boot
-    current_boot=$(get_current_boot_id)
-    local active_theme="$SAVED_THEME"
-    if [[ "$current_boot" != "$SAVED_BOOT_ID" ]]; then
-        if [[ "$SAVED_THEME" == "4" ]]; then
-            active_theme="5"
-        else
-            active_theme="4"
-        fi
-    fi
+    local next_theme
+    next_theme=$(get_next_theme)
 
-    echo -e "\033[1;38;2;203;166;247m── 🌌 Omni-Screensaver Status & Startup Rotation ──\033[0m"
-    echo -e "  Current Boot ID:    \033[2m${current_boot}\033[0m"
-    echo -e "  Recorded Boot ID:   \033[2m${SAVED_BOOT_ID:-None}\033[0m"
-    echo -e "  Startup Rotation:   \033[1;32mACTIVE\033[0m (Alternating per startup: #4 ⟷ #5)"
-    echo -e "  Active Theme:       \033[1;35m#${active_theme}\033[0m - $(get_theme_name "$active_theme")"
-    echo -e "  State File:         \033[2m${STATE_FILE}\033[0m"
+    echo -e "\033[1;38;2;203;166;247m── 🌌 Omni-Screensaver Status & Swap Rotation ──\033[0m"
+    echo -e "  Last Activated Theme: \033[1;35m#${SAVED_THEME}\033[0m - $(get_theme_name "$SAVED_THEME")"
+    echo -e "  Next Launch Theme:    \033[1;32m#${next_theme}\033[0m - $(get_theme_name "$next_theme")"
+    echo -e "  Swap Mode:            \033[1;32mACTIVE\033[0m (Alternating every invocation: #4 ⟷ #5)"
+    echo -e "  State File:           \033[2m${STATE_FILE}\033[0m"
+    if [[ -n "${LAST_ACTIVATED:-}" ]]; then
+        echo -e "  Last Activated At:    \033[2m${LAST_ACTIVATED}\033[0m"
+    fi
     echo ""
     list_themes
 }
@@ -118,13 +95,14 @@ Options:
                          4: Chromatic Aurora (Subtle fluid spectral ribbons)
                          5: Omarchy ASCII (Monospace kinetic telemetry emblem)
   -r, --rotate         Manually toggle active theme between #4 and #5
-  -s, --status         Show startup rotation status and active theme
+  -s, --status         Show swap rotation status and active theme
   -l, --list           List available themes and visual styles
   -h, --help           Show this help message
 
-Startup Rotation:
+Swap Rotation:
   By default, screensaver automatically alternates between Theme #4
-  (Chromatic Aurora) and Theme #5 (Omarchy ASCII) per system startup.
+  (Chromatic Aurora) and Theme #5 (Omarchy ASCII) every single time
+  it is invoked / launched.
 
 Controls while running:
   [1-5]                Directly switch theme
@@ -153,8 +131,17 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -t|--theme)
-            THEME="$2"
-            shift 2
+            if [[ $# -ge 2 && ! "$2" =~ ^- ]]; then
+                THEME="$2"
+                shift 2
+            else
+                echo "Error: --theme requires an argument (1-5)" >&2
+                exit 1
+            fi
+            ;;
+        -t=*|--theme=*)
+            THEME="${1#*=}"
+            shift
             ;;
         -r|--rotate)
             force_rotate_theme
@@ -165,7 +152,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         --startup-hook)
-            rotate_startup_theme >/dev/null
+            advance_theme >/dev/null
             exit 0
             ;;
         -l|--list)
@@ -176,20 +163,54 @@ while [[ $# -gt 0 ]]; do
             print_help
             exit 0
             ;;
-        --window-id*|--root)
-            # Accept screensaver runner arguments gracefully
+        --window-id=*|-window-id=*)
             shift
             ;;
+        --window-id|-window-id)
+            if [[ $# -ge 2 && ! "$2" =~ ^- ]]; then
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        --root|-root)
+            shift
+            ;;
+        --monitor=*|-monitor=*)
+            shift
+            ;;
+        --monitor|-monitor)
+            if [[ $# -ge 2 && ! "$2" =~ ^- ]]; then
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        --width=*|--height=*|-width=*|-height=*)
+            shift
+            ;;
+        --width|--height|-width|-height)
+            if [[ $# -ge 2 && ! "$2" =~ ^- ]]; then
+                shift 2
+            else
+                shift
+            fi
+            ;;
         *)
-            echo "Unknown option: $1"
-            print_help
-            exit 1
+            # Gracefully ignore unknown screensaver flags passed by display managers/runners
+            if [[ "$1" =~ ^- ]]; then
+                shift
+            else
+                echo "Unknown option: $1"
+                print_help
+                exit 1
+            fi
             ;;
     esac
 done
 
 if [[ -z "$THEME" ]]; then
-    THEME=$(rotate_startup_theme)
+    THEME=$(advance_theme)
 fi
 
 PARAMS=()
@@ -204,23 +225,39 @@ TARGET_URL="file://${INDEX_FILE}${QUERY_STRING}"
 
 # Detect browser runtime (Chromium preferred for hardware accelerated WebGL/canvas)
 if command -v chromium >/dev/null 2>&1; then
+    CHROMIUM_USER_DIR="$STATE_DIR/chromium-profile"
+    mkdir -p "$CHROMIUM_USER_DIR"
+
+    # Clean up stale singleton lock if no screensaver chromium process is active
+    if ! pgrep -f "chromium.*${CHROMIUM_USER_DIR}" >/dev/null 2>&1; then
+        rm -f "${CHROMIUM_USER_DIR}/Singleton"* 2>/dev/null || true
+    fi
+
+    CHROMIUM_FLAGS=(
+        --user-data-dir="$CHROMIUM_USER_DIR"
+        --no-first-run
+        --no-default-browser-check
+        --disable-session-crashed-bubble
+        --disable-infobars
+        --noerrdialogs
+        --disable-extensions
+        --disable-default-apps
+        --disable-pinch
+        --overscroll-history-navigation=0
+        --check-for-update-interval=31536000
+    )
+
     if [[ "$PREVIEW" == true ]]; then
         exec chromium \
+            "${CHROMIUM_FLAGS[@]}" \
             --app="${TARGET_URL}" \
             --window-size=1100,680 \
-            --disable-extensions \
-            --no-first-run \
-            --disable-default-apps \
             >/dev/null 2>&1
     else
         exec chromium \
+            "${CHROMIUM_FLAGS[@]}" \
             --kiosk \
             --app="${TARGET_URL}" \
-            --disable-extensions \
-            --no-first-run \
-            --disable-default-apps \
-            --disable-pinch \
-            --overscroll-history-navigation=0 \
             >/dev/null 2>&1
     fi
 elif command -v falkon >/dev/null 2>&1; then

@@ -1,7 +1,7 @@
 # mitmproxy lab tools
 
 Shared config lives in `~/.mitmproxy/config.yaml`:
-- **proxy port 8081** (devices connect here — 8080 is TriliumNext)
+- **proxy port 8081** (devices connect here — 8080 reserved)
 - **web UI 127.0.0.1:8082** (mitmweb), auto-opens a browser
 
 CA cert: `~/.mitmproxy/mitmproxy-ca-cert.pem` (install on targets for HTTPS; or browse `http://mitm.it` from a device already using the proxy).

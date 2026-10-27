@@ -11,6 +11,8 @@ from . import WORKSPACE, audit, lines
 # subcommand -> (interpreter, script path relative to workspace, help)
 WRAPPED = {
     "status": ("python", "Scripts/command_center.py", "Command center dashboard (Ollama, thermals, privacy)"),
+    "pentest": ("bash", "pentest-scope/auto-pentest.sh", "Automated RF pentest & AI telemetry pipeline"),
+    "auto": ("bash", "pentest-scope/auto-pentest.sh", "Automated RF pentest & AI telemetry pipeline"),
     "pcap": ("python", "pentest-scope/ai-pcap-analyze.py", "AI-assisted pcap analysis"),
     "scan": ("bash", "pentest-scope/rf-scan.sh", "RF survey on wlan0"),
     "capture": ("bash", "pentest-scope/scoped-capture.sh", "Scope-filtered packet capture"),

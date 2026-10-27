@@ -1,8 +1,19 @@
-# AI CLI WORK
+# Synapse CLI
 
-Primary workspace for AI agent orchestration (Claude Code, Gemini/Antigravity `agy`, local Ollama), network analysis, and desktop tooling on EndeavourOS. Agent instructions live in `CLAUDE.md` / `GEMINI.md`.
+> **The Canonical AI Engineering CLI, Privacy Audit & Workstation Suite for EndeavourOS & SynapseOS.**  
+> *Bridging Antigravity CLI (`agy`), Claude Code, Local Ollama, RF security auditing, and the Synapse AI Brain.*
 
-## `lab` CLI
+```
+   ███████ ██    ██ ███    ██  █████  ██████  ███████ ███████      ██████ ██      ██ 
+   ██       ██  ██  ████   ██ ██   ██ ██   ██ ██      ██          ██      ██      ██ 
+   ███████   ████   ██ ██  ██ ███████ ██████  ███████ █████       ██      ██      ██ 
+        ██    ██    ██  ██ ██ ██   ██ ██           ██ ██          ██      ██      ██ 
+   ███████    ██    ██   ████ ██   ██ ██      ███████ ███████      ██████ ███████ ██ 
+```
+
+Primary workspace for AI agent orchestration (Claude Code, Gemini/Antigravity `agy`, local Ollama), network analysis, and desktop tooling on EndeavourOS. Agent instructions live in `CLAUDE.md` / `GEMINI.md` / `AGENTS.md`.
+
+## `lab` & `synapse` CLI Integrations
 
 One entry point (`~/.local/bin/lab` → `.venv/bin/lab`, editable install of `src/lab`):
 

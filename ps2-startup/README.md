@@ -1,39 +1,29 @@
-# PlayStation 2 // XFCE 4.20 Startup Animation Suite
+# PlayStation 2 // XFCE 4.20 Startup & Login
 
-Custom engineered PlayStation 2 BIOS inspired animated boot sequence tailored specifically for **XFCE 4.20** on **EndeavourOS Arch Linux** (Dell Latitude 7490).
+PlayStation 2 BIOS inspired boot sequence for **XFCE 4.20** on **EndeavourOS** (Dell Latitude 7490):
+the animation plays before login and its final XFCE frame *becomes* the SDDM login screen.
 
----
+## Boot flow
 
-## 🎮 Features
+```
+SDDM starts X -> Xsetup runs ps2-system-boot (once per boot)
+  Act I   0.0-4.4s   light motes spiral in -> flare -> ENDEAVOUROS wordmark
+  Act II  4.1-9.6s   translucent tower field, slow orbit, drifting orbs, rise into whiteout
+  Act III 9.5-12s    whiteout dissolves into the XFCE 4.20 logo (static from 11.2s)
+mpv holds the last frame (keep-open) -> Xsetup returns -> sddm-greeter starts on top
+  ps2-xfce SDDM theme: same image + password box for ebaymlay -> XFCE session
+```
 
-- **Iconic PS2 BIOS Visuals**:
-  - Deep oceanic misty twilight void with atmospheric depth fog.
-  - 110 crystalline monolithic save towers rising from the void with glowing cyan wireframe edge bevels and illuminated tops.
-  - 360 luminous energy orbs and stardust motes floating, orbiting, and streaking in 3D.
-  - Cinematic camera choreography: slow low-angle atmospheric glide transitioning into a dramatic banking curve through the monolith canyon.
-  - Blinding celestial supernova whiteout flash.
-- **PS2-Style XFCE 4.20 Typography**:
-  - Central 3D crystal hexagon monolith prism with glowing cyan core.
-  - Iconic "XFCE" bold metallic gradient typography (White -> Sky Blue -> Royal Blue) with crisp bevel outline and superscript "4.20" badge.
-  - Diagonal light sheen traversing across the letters.
-  - Classic Sony PS2 spaced subtitle: `D E S K T O P   E N V I R O N M E N T`.
-  - Telemetry HUD: `BIOS 2.20 // KABY LAKE-R`, `SYSTEM MEMORY: 24 GB DUAL-CH`, `ENDEAVOUROS // ARCH LINUX`, `DISPLAY: eDP-1 1080p 60Hz`.
-  - Hardware status pill: `[ ● SYSTEM READY | VA-API ACCELERATED | PIPEWIRE 1.6 ]`.
-- **Iconic Audio Recreation**:
-  - Synthesized 48kHz 24-bit stereo soundtrack recreated via Python (`numpy` / `scipy`):
-    - 48 Hz oceanic sub-bass foundation
-    - D-minor ethereal suspended organ / synth pad cluster with stereo chorus
-    - Swept-filter resonant wind swoosh during monolith canyon flight
-    - High-frequency celestial crystal bell chimes (E6, B6, E7, G#7, B7)
-    - Cavernous cathedral reverberation network
-- **Hardware VA-API Acceleration**:
-  - Plays fullscreen instantly via `mpv` with Intel UHD Graphics 620 VA-API hardware decoding (`vaapi[nv12]`) and PipeWire audio.
-  - Zero dropped frames, exact 60.00 FPS (720 frames at 1920x1080).
-- **Interactive Desktop Skipping**:
-  - Press `ESC`, `Q`, `Space`, `Enter`, or click anywhere with the mouse to immediately dismiss the video and reveal the loaded XFCE desktop.
-  - Custom `input.conf` bindings ensure instant skip behavior in mpv without getting trapped in windowed mode.
-
----
+- **Seamless hand-off**: `render_ps2_video.py` exports the final frame as `sddm-theme/background.png`
+  (BT.709 encode, so the decoded frame matches within ~1 level). The login panel fades in over it.
+- **Login cannot be bypassed**: it's the real SDDM greeter (PAM). The only ways past it are a correct
+  password or the restart/shutdown buttons. The XFCE X11 session is pinned.
+- **Skipping the animation**: ESC / Enter / Space / Q jump to the final frame. They don't quit, so the hand-off still happens.
+- **Hardened**: mpv runs as root before login, so it starts with `--no-config`, no builtin or
+  auto-loaded scripts (mpv's console can run commands), and no default key bindings.
+- **Audio** (`generate_audio.py`, numpy only): reverse swell -> sub "whum" + glass bells at the flare
+  -> low beating drone with distant FM plinks -> rising whoosh -> D-major add9 logo chord, all through
+  a 4 s synthetic-IR convolution reverb.
 
 ## 🚀 Usage
 
@@ -52,7 +42,12 @@ ps2-startup --web
 # Check system boot & autostart status & video metrics
 ps2-startup --status
 
-# Install as system startup boot animation (SDDM Xsetup before login)
+# Install the full sequence: boot animation + PS2 XFCE SDDM login theme
+ps2-startup --install-boot-sequence
+ps2-startup --remove-boot-sequence
+
+# Pieces individually
+ps2-startup --install-greeter | --remove-greeter
 ps2-startup --install-system-boot
 
 # Remove system startup boot animation
@@ -75,6 +70,9 @@ ps2-startup --rebuild
 | File | Description |
 | :--- | :--- |
 | `ps2_xfce_startup.mp4` | Master 1080p60 H.264/AAC video (12.0s, 720 frames, 8 MB). |
+| `sddm-theme/` | Qt6 SDDM theme (`Main.qml`, generated `background.png` + `theme.conf`). Installed to `/usr/share/sddm/themes/ps2-xfce`. |
+| `system/ps2-system-boot` | Xsetup hook: plays once per boot and holds the last frame for the greeter. |
+| `system/eof-handoff.lua`, `system/boot-input.conf` | EOF signal and skip-to-end bindings for the boot mpv. |
 | `xfce-ps2-startup` | Main CLI orchestrator with single-instance flock lock and mpv wrapper. |
 | `input.conf` | Dedicated mpv keybindings (instant skip via ESC, ENTER, Q, or click). |
 | `render_ps2_video.py` | Multi-core parallel renderer (utilizes 8 CPU threads via PyCairo & FFmpeg). |

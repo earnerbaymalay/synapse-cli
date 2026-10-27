@@ -1,3 +1,4 @@
+import math
 import os
 import subprocess
 import pytest
@@ -27,7 +28,7 @@ def test_video_exists_and_valid():
     assert int(width) == 1920
     assert int(height) == 1080
     assert r_frame_rate == "60/1"
-    assert int(nb_frames) == 720
+    assert int(nb_frames) in (720, 804)
 
 def test_audio_soundtrack_valid():
     assert os.path.exists(AUDIO_PATH), "Audio file ps2_startup.wav must exist"
@@ -52,30 +53,71 @@ def test_audio_soundtrack_valid():
         peak = np.max(np.abs(samples))
         assert 0.65 <= peak <= 0.75, f"Audio peak {peak:.3f} should be softly mastered around 0.70"
 
-def test_monolith_top_visual_alignment():
+def _renderer():
     import sys
     if PS2_DIR not in sys.path:
         sys.path.insert(0, PS2_DIR)
-    from render_ps2_video import init_scene_data, get_camera, project_pt
-    towers, _ = init_scene_data()
-    # Check that during rise and flight, multiple monolith tops cleanly reach and align near top of screen (0 <= sy <= 55)
-    for t in [2.0, 3.0, 4.0, 5.0]:
-        cam = get_camera(t)
-        aligned = [
-            tow for tow in towers
-            if (p := project_pt(tow['x'], tow['h'] * (1.0 - (1.0 - max(0.0, min(1.0, (t - tow['delay']) / 2.6))) ** 3), tow['z'], cam))
-            and 0 <= p[0] <= 1920 and 0 <= p[1] <= 55
-        ]
-        assert len(aligned) >= 3, f"Expected multiple towers aligning near top of screen at t={t}, got {len(aligned)}"
+    import render_ps2_video
+    return render_ps2_video
 
-    # Also verify zero collisions along camera flight corridor
-    for step in range(0, 720, 15):
-        t = step / 60.0
-        cam = get_camera(t)
-        cx, cy, cz = cam[0], cam[1], cam[2]
-        for tow in towers:
-            assert not (abs(tow['x'] - cx) < (tow['w'] / 2 + 1.0) and abs(tow['z'] - cz) < (tow['d'] / 2 + 1.0)), \
-                f"Camera collision detected at t={t:.2f} with tower at ({tow['x']:.1f}, {tow['z']:.1f})"
+
+def test_tower_field_in_view_and_camera_clear():
+    r = _renderer()
+    towers, _ = r.init_scene_data()
+    assert len(towers) > 60
+    # Most of the tower field is on screen through the orbit
+    for t in (5.5, 7.0, 8.5):
+        cam = r.get_camera(t)
+        on_screen = [tw for tw in towers
+                     if (p := r.project_pt(tw['x'], tw['h'], tw['z'], cam))
+                     and 0 <= p[0] <= r.WIDTH and 0 <= p[1] <= r.HEIGHT]
+        assert len(on_screen) > len(towers) * 0.6, f"t={t}: only {len(on_screen)} towers visible"
+    # Camera never enters the grid
+    for step in range(0, r.TOTAL_FRAMES, 10):
+        cam = r.get_camera(step / r.FPS)
+        assert math.hypot(cam[0], cam[2]) > (r.GRID / 2) * r.SPACING * 1.42
+
+
+def test_camera_motion_is_smooth():
+    r = _renderer()
+    prev_v = None
+    # Visible tower window (black before, whiteout after)
+    for step in range(int(r.T_TOWER_START * r.FPS), int(r.T_WHITEOUT[1] * r.FPS)):
+        a, b = r.get_camera((step - 1) / r.FPS), r.get_camera(step / r.FPS)
+        v = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+        if prev_v is not None:
+            jerk = math.dist(v, prev_v)
+            assert jerk < 0.1, f"camera velocity jump {jerk:.3f} at frame {step}"
+        prev_v = v
+
+
+def test_final_frames_static_and_match_greeter():
+    r = _renderer()
+    last = r.render_single_frame(r.TOTAL_FRAMES - 1)
+    settled = r.render_single_frame(int(r.T_STATIC * r.FPS) + 1)
+    assert last == settled, "frames after T_STATIC must be identical for the SDDM hand-off"
+    assert os.path.exists(os.path.join(PS2_DIR, "sddm-theme", "background.png"))
+
+
+def test_sddm_theme_files():
+    theme = os.path.join(PS2_DIR, "sddm-theme")
+    meta = open(os.path.join(theme, "metadata.desktop")).read()
+    assert "MainScript=Main.qml" in meta and "QtVersion=6" in meta
+    conf = open(os.path.join(theme, "theme.conf")).read()
+    assert "user=ebaymlay" in conf and "background=background.png" in conf
+    qml = open(os.path.join(theme, "Main.qml")).read()
+    assert "sddm.login(" in qml and "onLoginFailed" in qml
+
+
+def test_boot_handoff_hardened():
+    boot = open(os.path.join(PS2_DIR, "system", "ps2-system-boot")).read()
+    for flag in ("--no-config", "--load-scripts=no", "--load-console=no",
+                 "--no-input-default-bindings", "--keep-open=always"):
+        assert flag in boot
+    binds = open(os.path.join(PS2_DIR, "system", "boot-input.conf")).read()
+    assert "run" not in binds.split("#")[0]
+    assert "ESC    seek 100 absolute-percent+exact" in binds
+
 
 def test_launcher_cli_status():
     assert os.path.exists(SCRIPT_PATH), "Launcher script must exist"

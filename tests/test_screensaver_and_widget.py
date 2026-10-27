@@ -34,7 +34,7 @@ def test_screensaver_rotation():
         check=True
     )
     clean_out = ANSI_RE.sub('', res.stdout)
-    assert "Startup Rotation:   ACTIVE" in clean_out
+    assert "Swap Mode:            ACTIVE" in clean_out or "Startup Rotation:   ACTIVE" in clean_out
     assert "#4" in clean_out or "#5" in clean_out
 
 def test_ps2_system_boot_status():

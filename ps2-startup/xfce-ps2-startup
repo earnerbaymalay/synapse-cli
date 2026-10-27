@@ -33,8 +33,12 @@ Options:
   --play                 (Default) Launch fullscreen PS2 animated startup via mpv
   --window               Launch in windowed preview mode (1280x720)
   --web                  Launch real-time interactive Three.js WebGL engine in Chromium
+  --install-boot-sequence  PS2 animation + PS2 XFCE SDDM login theme it hands over to
+  --remove-boot-sequence   Undo the above
   --install-system-boot  Set as system startup boot animation (SDDM Xsetup)
   --remove-system-boot   Remove system startup boot animation
+  --install-greeter      Install only the PS2 XFCE SDDM login theme
+  --remove-greeter       Restore the default SDDM theme
   --install-autostart    Register as XFCE user session startup (login)
   --remove-autostart     Disable XFCE user session startup
   --status               Show system boot & autostart status and video metadata
@@ -132,102 +136,68 @@ play_web() {
     fi
 }
 
+SYSTEM_SHARE="/usr/local/share/ps2-startup"
+THEME_SRC="$BASE_DIR/sddm-theme"
+THEME_DST="/usr/share/sddm/themes/ps2-xfce"
+SDDM_CONF="/etc/sddm.conf.d/10-ps2-xfce.conf"
+XSETUP="/usr/share/sddm/scripts/Xsetup"
+
 install_system_boot() {
-    echo "[*] Setting PS2 animation as system startup boot animation..."
-    if [[ ! -f "$VIDEO_FILE" ]]; then
-        echo "[!] Video file missing: $VIDEO_FILE"
-        echo "[*] Rebuilding video first..."
-        rebuild_video
+    echo "[*] Installing PS2 boot animation (SDDM Xsetup, plays once per boot)..."
+    [[ -f "$VIDEO_FILE" ]] || rebuild_video
+
+    sudo install -d -m 755 "$SYSTEM_SHARE"
+    sudo install -m 644 "$VIDEO_FILE" "$SYSTEM_SHARE/ps2_startup.mp4"
+    sudo install -m 644 "$BASE_DIR/system/boot-input.conf" "$SYSTEM_SHARE/input.conf"
+    sudo install -m 644 "$BASE_DIR/system/eof-handoff.lua" "$SYSTEM_SHARE/eof-handoff.lua"
+    sudo install -m 755 "$BASE_DIR/system/ps2-system-boot" /usr/local/bin/ps2-system-boot
+
+    if ! grep -q "ps2-system-boot" "$XSETUP" 2>/dev/null; then
+        printf '\n# PlayStation 2 System Startup Boot Animation\nif [ -x /usr/local/bin/ps2-system-boot ]; then\n    /usr/local/bin/ps2-system-boot || true\nfi\n' \
+            | sudo tee -a "$XSETUP" >/dev/null
     fi
-
-    sudo mkdir -p /usr/local/share/ps2-startup
-    sudo cp -f "$VIDEO_FILE" /usr/local/share/ps2-startup/ps2_startup.mp4
-    if [[ -f "$INPUT_CONF" ]]; then
-        sudo cp -f "$INPUT_CONF" /usr/local/share/ps2-startup/input.conf
-    fi
-    sudo chmod 755 /usr/local/share/ps2-startup
-    sudo chmod 644 /usr/local/share/ps2-startup/ps2_startup.mp4
-    [[ -f /usr/local/share/ps2-startup/input.conf ]] && sudo chmod 644 /usr/local/share/ps2-startup/input.conf
-
-    sudo bash -c 'cat > /usr/local/bin/ps2-system-boot << '\''EOF'\''
-#!/usr/bin/env bash
-# ps2-system-boot — System Startup Boot Animation (SDDM Xsetup)
-set -euo pipefail
-
-VIDEO="/usr/local/share/ps2-startup/ps2_startup.mp4"
-INPUT_CONF="/usr/local/share/ps2-startup/input.conf"
-BOOT_STAMP="/run/ps2_startup_boot_done"
-LOCK_FILE="/run/lock/ps2_system_boot.lock"
-
-FORCE=false
-[[ "${1:-}" == "--force" ]] && FORCE=true
-
-if [[ "$FORCE" == false && -f "$BOOT_STAMP" ]]; then
-    exit 0
-fi
-
-mkdir -p /run/lock
-exec 201>"$LOCK_FILE"
-if ! flock -n 201; then
-    exit 0
-fi
-
-[[ -f "$VIDEO" ]] || exit 0
-export DISPLAY="${DISPLAY:-:0.0}"
-touch "$BOOT_STAMP"
-
-input_flags=()
-[[ -f "$INPUT_CONF" ]] && input_flags+=("--input-conf=$INPUT_CONF")
-
-mpv \
-    --fs \
-    --ontop \
-    "${input_flags[@]}" \
-    --no-terminal \
-    --no-osc \
-    --no-osd-bar \
-    --cursor-autohide=always \
-    --vo=gpu \
-    --hwdec=auto-safe \
-    --profile=fast \
-    --force-window=immediate \
-    --ao=alsa,pipewire,pulse \
-    --keep-open=no \
-    --title="PlayStation 2 System Boot" \
-    "$VIDEO" >/dev/null 2>&1 || true
-EOF
-chmod +x /usr/local/bin/ps2-system-boot
-'
-
-    # Ensure SDDM Xsetup calls ps2-system-boot
-    local xsetup="/usr/share/sddm/scripts/Xsetup"
-    sudo mkdir -p "$(dirname "$xsetup")"
-    if ! grep -q "ps2-system-boot" "$xsetup" 2>/dev/null; then
-        sudo bash -c "cat >> $xsetup << 'EOF'
-
-# PlayStation 2 System Startup Boot Animation
-if [ -x /usr/local/bin/ps2-system-boot ]; then
-    /usr/local/bin/ps2-system-boot || true
-fi
-EOF"
-    fi
-    sudo chmod +x "$xsetup"
-
-    echo "[✓] Successfully installed PS2 system startup boot animation!"
-    echo "[✓] Animation will now play fullscreen during machine startup before login dialog."
+    sudo chmod +x "$XSETUP"
+    echo "[✓] Boot animation installed."
 }
 
 remove_system_boot() {
-    local xsetup="/usr/share/sddm/scripts/Xsetup"
-    if grep -q "ps2-system-boot" "$xsetup" 2>/dev/null; then
-        sudo sed -i '/# PlayStation 2 System Startup Boot Animation/,+3d' "$xsetup"
-        echo "[✓] Removed PS2 boot animation hook from $xsetup"
+    if grep -q "ps2-system-boot" "$XSETUP" 2>/dev/null; then
+        sudo sed -i '/# PlayStation 2 System Startup Boot Animation/,+3d' "$XSETUP"
+        echo "[✓] Removed PS2 hook from $XSETUP"
     fi
-    if [[ -f /usr/local/bin/ps2-system-boot ]]; then
-        sudo rm -f /usr/local/bin/ps2-system-boot
-        echo "[✓] Removed /usr/local/bin/ps2-system-boot"
-    fi
+    sudo rm -f /usr/local/bin/ps2-system-boot
+    sudo rm -rf "$SYSTEM_SHARE"
     echo "[✓] System startup boot animation disabled."
+}
+
+install_greeter() {
+    echo "[*] Installing PS2 XFCE login screen (SDDM theme)..."
+    [[ -f "$THEME_SRC/background.png" ]] || rebuild_video
+    sudo install -d -m 755 "$THEME_DST"
+    sudo install -m 644 "$THEME_SRC"/{Main.qml,metadata.desktop,theme.conf,background.png} "$THEME_DST/"
+    sudo install -d -m 755 /etc/sddm.conf.d
+    printf '[Theme]\nCurrent=ps2-xfce\n\n[Users]\nRememberLastUser=true\nRememberLastSession=true\n' \
+        | sudo tee "$SDDM_CONF" >/dev/null
+    echo "[✓] SDDM now uses the ps2-xfce theme ($SDDM_CONF)."
+}
+
+remove_greeter() {
+    sudo rm -f "$SDDM_CONF"
+    sudo rm -rf "$THEME_DST"
+    echo "[✓] Restored the default SDDM theme."
+}
+
+install_boot_sequence() {
+    install_system_boot
+    install_greeter
+    # The animation now plays before login; don't replay it inside the session.
+    [[ -f "$AUTOSTART_FILE" ]] && remove_autostart
+    echo "[✓] Boot sequence: PS2 animation -> PS2 XFCE login (SDDM) -> desktop"
+}
+
+remove_boot_sequence() {
+    remove_greeter
+    remove_system_boot
 }
 
 install_autostart() {
@@ -270,6 +240,12 @@ show_status() {
         echo -e "  System Boot Splash: \033[1;33mNOT INSTALLED\033[0m (Run --install-system-boot to enable)"
     fi
 
+    if [[ -f "$SDDM_CONF" && -f "$THEME_DST/Main.qml" ]]; then
+        echo -e "  Login Screen:       \033[1;32mACTIVE\033[0m (SDDM theme ps2-xfce)"
+    else
+        echo -e "  Login Screen:       \033[1;33mNOT INSTALLED\033[0m (Run --install-boot-sequence)"
+    fi
+
     if [[ -f "$AUTOSTART_FILE" ]]; then
         echo -e "  User Autostart:     \033[1;32mACTIVE\033[0m ($AUTOSTART_FILE)"
     else
@@ -289,7 +265,7 @@ show_status() {
 
 rebuild_video() {
     echo "[*] Rebuilding PS2 XFCE startup video via multi-core parallel engine..."
-    uv run --with pycairo,numpy python3 "$BASE_DIR/render_ps2_video.py"
+    uv run --with pycairo,numpy python3 "$BASE_DIR/render_ps2_video.py" --audio
 }
 
 # Command line parsing
@@ -309,6 +285,9 @@ case "${1:-}" in
         ;;
     --remove-system-boot)
         ACTION="remove_system_boot"
+        ;;
+    --install-boot-sequence|--remove-boot-sequence|--install-greeter|--remove-greeter)
+        ACTION="${1#--}"; ACTION="${ACTION//-/_}"
         ;;
     --install-autostart)
         ACTION="install_autostart"
@@ -351,6 +330,9 @@ case "$ACTION" in
         ;;
     remove_system_boot)
         remove_system_boot
+        ;;
+    install_boot_sequence|remove_boot_sequence|install_greeter|remove_greeter)
+        "$ACTION"
         ;;
     install_autostart)
         install_autostart

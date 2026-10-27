@@ -1,7 +1,7 @@
 [project]
-name = "lab"
+name = "synapse-cli"
 version = "0.1.0"
-description = "AI CLI WORK unified toolkit: privacy audit, command center, pentest-scope wrappers"
+description = "Synapse CLI & AI unified toolkit: privacy audit, command center, pentest-scope wrappers"
 requires-python = ">=3.11"
 dependencies = [
     "rich",
