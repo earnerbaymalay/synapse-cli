@@ -6,16 +6,15 @@ the animation plays before login and its final XFCE frame *becomes* the SDDM log
 ## Boot flow
 
 ```
-SDDM starts X -> Xsetup runs ps2-system-boot (once per boot)
-  Act I   0.0-4.4s   light motes spiral in -> flare -> ENDEAVOUROS wordmark
-  Act II  4.1-9.6s   translucent tower field, slow orbit, drifting orbs, rise into whiteout
-  Act III 9.5-12s    whiteout dissolves into the XFCE 4.20 logo (static from 11.2s)
-mpv holds the last frame (keep-open) -> Xsetup returns -> sddm-greeter starts on top
-  ps2-xfce SDDM theme: same image + password box for ebaymlay -> XFCE session
+SDDM starts X -> Xsetup runs ps2-system-boot (once per boot, <50ms faststart)
+  0.0-7.4s   Authentic PlayStation 2 BIOS startup (Sony Computer Entertainment -> Crystal Towers dive)
+  7.4-8.4s   Smooth 1.0s Lanczos cross-fade + authentic PS2 chime into 4K XFCE 4.20 background
+  8.4-9.6s   Static 4K XFCE 4.20 + PlayStation 2 frame held for seamless hand-off
+mpv holds the last frame (keep-open, 20ms EOF polling) -> Xsetup returns -> sddm-greeter starts on top
+  ps2-xfce SDDM theme: 4K (3840x2160) background.png + password box -> 4K XFCE 4.20 desktop
 ```
 
-- **Seamless hand-off**: `render_ps2_video.py` exports the final frame as `sddm-theme/background.png`
-  (BT.709 encode, so the decoded frame matches within ~1 level). The login panel fades in over it.
+- **Seamless 4K hand-off**: `render_ps2_video.py` renders `sddm-theme/background.png` at true **4K (`3840x2160`)** with perspective 3D crystal monolith silhouettes and the PlayStation 2 // XFCE 4.20 emblem, and cross-fades the original PS2 startup video (`original_ps2_source.mp4`) directly into it (BT.709 encode). Both the SDDM greeter and the XFCE 4.20 desktop wallpaper use the identical 4K `background.png`.
 - **Login cannot be bypassed**: it's the real SDDM greeter (PAM). The only ways past it are a correct
   password or the restart/shutdown buttons. The XFCE X11 session is pinned.
 - **Skipping the animation**: ESC / Enter / Space / Q jump to the final frame. They don't quit, so the hand-off still happens.

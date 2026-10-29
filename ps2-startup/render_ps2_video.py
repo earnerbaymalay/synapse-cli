@@ -29,30 +29,33 @@ except ImportError:
 
 WIDTH = 1920
 HEIGHT = 1080
+BG_WIDTH = 3840
+BG_HEIGHT = 2160
 FPS = 60
-DURATION = 12.0
-TOTAL_FRAMES = int(DURATION * FPS)  # 720 frames
+DURATION = 9.6
+TOTAL_FRAMES = int(DURATION * FPS)  # 576 frames
 
 # Timeline (seconds)
 T_INTRO_FADE = (3.7, 4.35)
 T_TOWER_START = 4.1
 T_TOWER_FADE_IN = (4.1, 5.0)
-T_WHITEOUT = (8.5, 9.5)
-T_LOGO_DISSOLVE = (9.5, 10.3)
-T_LOGO_IN = (9.75, 10.6)
-T_SHEEN = (10.45, 11.15)
-T_STATIC = 11.2
+T_WHITEOUT = (7.4, 8.4)
+T_LOGO_DISSOLVE = (7.4, 8.1)
+T_LOGO_IN = (7.45, 8.15)
+T_SHEEN = (8.0, 8.35)
+T_STATIC = 8.4
 
 FOV = 1250.0
 
-# Logo / greeter layout (shared with the SDDM theme via theme.conf)
-LOGO_CY = 372.0          # baseline of the "XFCE" wordmark
+# Logo / greeter layout (shared with the SDDM theme via theme.conf; 1080p ref coords, 744.0 in 4K)
+LOGO_CY = 372.0          # baseline of the wordmark (744.0 in 3840x2160 4K)
 PANEL_TOP = 572          # where the greeter's login panel begins
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
+ORIG_SOURCE_MP4 = os.path.join(SCRIPT_DIR, "original_ps2_source.mp4")
 AUDIO_WAV = os.path.join(SCRIPT_DIR, "ps2_startup.wav")
 FINAL_MP4 = os.path.join(SCRIPT_DIR, "ps2_xfce_startup.mp4")
 THEME_DIR = os.path.join(SCRIPT_DIR, "sddm-theme")
@@ -161,7 +164,7 @@ INTRO_PARTICLES = init_intro_particles()
 # -----------------------------------------------------------------------------
 def get_camera(t):
     # Not clamped below 0: the camera is already gliding before the fade-in.
-    u = min(1.0, (t - T_TOWER_START) / (T_WHITEOUT[1] - T_TOWER_START))
+    u = min(1.0, (t - T_TOWER_START) / (9.5 - T_TOWER_START))
     # Mostly linear glide with eased ends: never stops, never jerks.
     s = 0.45 * u + 0.55 * smootherstep(0.0, 1.0, u)
     theta = -0.62 + 1.10 * s
@@ -534,11 +537,87 @@ def logo_layout(ctx):
 
 
 def draw_logo_background(ctx):
-    rad = cairo.RadialGradient(WIDTH / 2.0, 400.0, 40.0, WIDTH / 2.0, 470.0, 1150.0)
-    rad.add_color_stop_rgb(0.0, 0.045, 0.13, 0.29)
-    rad.add_color_stop_rgb(0.45, 0.012, 0.05, 0.13)
-    rad.add_color_stop_rgb(1.0, 0.0, 0.012, 0.04)
+    # 1. Deep PS2 cyber-blue void + subtle indigo nebula core
+    rad = cairo.RadialGradient(WIDTH / 2.0, 400.0, 40.0, WIDTH / 2.0, 470.0, 1180.0)
+    rad.add_color_stop_rgb(0.0, 0.055, 0.16, 0.36)
+    rad.add_color_stop_rgb(0.42, 0.016, 0.058, 0.16)
+    rad.add_color_stop_rgb(1.0, 0.002, 0.010, 0.035)
     ctx.set_source(rad)
+    ctx.paint()
+
+    # 2. Subtle perspective crystal monolith silhouettes & glowing glass edges
+    cam = get_camera(6.6)
+    cx, cy, cz = cam[0], cam[1], cam[2]
+    fog_d = 265.0
+    fog_col = (0.015, 0.05, 0.14)
+
+    visible = []
+    for tow in SCENE_TOWERS:
+        dist = math.sqrt((tow['x'] - cx) ** 2 + (tow['h'] * 0.5 - cy) ** 2 + (tow['z'] - cz) ** 2)
+        fog = 1.0 - math.exp(-(dist / fog_d) ** 2)
+        if fog < 0.995:
+            visible.append((dist, fog, tow))
+    visible.sort(key=lambda v: v[0], reverse=True)
+
+    def box_pts(tow):
+        hw, hd = tow['w'] / 2.0, tow['d'] / 2.0
+        h = tow['h']
+        pts = []
+        for vx, vy, vz in ((-hw, 0, -hd), (hw, 0, -hd), (hw, 0, hd), (-hw, 0, hd),
+                           (-hw, h, -hd), (hw, h, -hd), (hw, h, hd), (-hw, h, hd)):
+            p = project_pt(tow['x'] + vx, vy, tow['z'] + vz, cam)
+            if p is None:
+                return None
+            pts.append(p)
+        return pts
+
+    def poly(c, pts, idx):
+        c.move_to(pts[idx[0]][0], pts[idx[0]][1])
+        for i in idx[1:]:
+            c.line_to(pts[i][0], pts[i][1])
+        c.close_path()
+
+    for dist, fog, tow in visible:
+        pts = box_pts(tow)
+        if pts is None:
+            continue
+        vis = (1.0 - fog) * 0.34
+        for n, idx in BOX_FACES:
+            fcx = tow['x'] + n[0] * tow['w'] / 2.0
+            fcz = tow['z'] + n[2] * tow['d'] / 2.0
+            if n[0] * (cx - fcx) + n[2] * (cz - fcz) <= 0.0:
+                continue
+            shade = 0.82 if n[0] != 0 else 1.0
+            top_col = mix3(mix3(FACE_SIDE, FACE_TOP, 0.45), fog_col, fog)
+            base_col = mix3((FACE_SIDE[0] * 0.3, FACE_SIDE[1] * 0.3, FACE_SIDE[2] * 0.38), fog_col, fog)
+            poly(ctx, pts, idx)
+            grad = cairo.LinearGradient(0, pts[idx[2]][1], 0, pts[idx[0]][1])
+            grad.add_color_stop_rgba(0.0, top_col[0] * shade, top_col[1] * shade, top_col[2] * shade, 0.65 * vis)
+            grad.add_color_stop_rgba(1.0, base_col[0], base_col[1], base_col[2], 0.35 * vis)
+            ctx.set_source(grad)
+            ctx.fill()
+
+        # Crystal top cap & luminous edges
+        cap = mix3(FACE_TOP, fog_col, fog)
+        poly(ctx, pts, (4, 5, 6, 7))
+        ctx.set_source_rgba(cap[0], cap[1], cap[2], 0.72 * vis)
+        ctx.fill_preserve()
+        ctx.set_source_rgba(0.75, 0.92, 1.0, 0.48 * vis)
+        ctx.set_line_width(max(0.5, min(1.5, 180.0 / dist)))
+        ctx.stroke()
+
+        ctx.set_source_rgba(0.60, 0.85, 1.0, 0.26 * vis)
+        for i in range(4):
+            ctx.move_to(pts[i][0], pts[i][1])
+            ctx.line_to(pts[i + 4][0], pts[i + 4][1])
+        ctx.stroke()
+
+    # 3. Central clear-zone vignette so the PS2 // XFCE 4.20 emblem & SDDM login card have high contrast
+    veil = cairo.RadialGradient(WIDTH / 2.0, 500.0, 110.0, WIDTH / 2.0, 520.0, 760.0)
+    veil.add_color_stop_rgba(0.0, 0.025, 0.09, 0.22, 0.86)
+    veil.add_color_stop_rgba(0.55, 0.012, 0.045, 0.13, 0.55)
+    veil.add_color_stop_rgba(1.0, 0.0, 0.01, 0.035, 0.0)
+    ctx.set_source(veil)
     ctx.paint()
 
 
@@ -720,14 +799,16 @@ def draw_logo_scene(ctx, t):
 # -----------------------------------------------------------------------------
 # Frame compositor
 # -----------------------------------------------------------------------------
-def render_frame_surface(frame_idx):
+def render_frame_surface(frame_idx, scale=1):
     if cairo is None:
         raise RuntimeError("pycairo is required to render video frames.")
     # Everything is settled by T_STATIC; freezing t keeps the tail pixel-identical.
     t = min(frame_idx / float(FPS), T_STATIC)
 
-    surface = cairo.ImageSurface(cairo.FORMAT_RGB24, WIDTH, HEIGHT)
+    surface = cairo.ImageSurface(cairo.FORMAT_RGB24, int(WIDTH * scale), int(HEIGHT * scale))
     ctx = cairo.Context(surface)
+    if scale != 1:
+        ctx.scale(scale, scale)
     ctx.set_source_rgb(0, 0, 0)
     ctx.paint()
 
@@ -753,13 +834,14 @@ def render_frame_surface(frame_idx):
 
 
 def render_single_frame(frame_idx):
-    return bytes(render_frame_surface(frame_idx).get_data())
+    return bytes(render_frame_surface(frame_idx, scale=1).get_data())
 
 
 def export_greeter_assets():
-    """Write the final frame as the SDDM background plus the matching layout."""
+    """Write the 4K (3840x2160) final frame as the SDDM & XFCE background plus the matching layout."""
     os.makedirs(THEME_DIR, exist_ok=True)
-    surf = render_frame_surface(TOTAL_FRAMES - 1)
+    scale_4k = BG_WIDTH / float(WIDTH)  # 2.0 -> 3840x2160
+    surf = render_frame_surface(TOTAL_FRAMES - 1, scale=scale_4k)
     surf.write_to_png(GREETER_BG)
     L = logo_layout(cairo.Context(cairo.ImageSurface(cairo.FORMAT_RGB24, 8, 8)))
     with open(os.path.join(THEME_DIR, "theme.conf"), "w") as f:
@@ -769,33 +851,103 @@ def export_greeter_assets():
         f.write(f"emblemX={L['emblem_x']:.1f}\n")
         f.write(f"emblemY={L['emblem_y']:.1f}\n")
         f.write(f"panelTop={PANEL_TOP}\n")
-    print(f"[✓] Greeter background: {GREETER_BG}")
+    print(f"[✓] 4K Greeter & Desktop background ({BG_WIDTH}x{BG_HEIGHT}): {GREETER_BG}")
+
+
+def build_authentic_ps2_audio():
+    """Extract and master the genuine PS2 BIOS audio (intro + crystal towers + PS2 chime) into AUDIO_WAV."""
+    import wave
+    import numpy as np
+
+    if not os.path.exists(ORIG_SOURCE_MP4):
+        from generate_audio import generate_ps2_soundtrack
+        generate_ps2_soundtrack(AUDIO_WAV)
+        return
+
+    sr = 48000
+    raw = subprocess.check_output([
+        "ffmpeg", "-v", "error", "-i", ORIG_SOURCE_MP4,
+        "-f", "f32le", "-ac", "2", "-ar", str(sr), "-"
+    ])
+    stereo = np.frombuffer(raw, dtype=np.float32).reshape(-1, 2)
+
+    target_samples = int(DURATION * sr)
+    out = np.zeros((target_samples, 2), dtype=np.float32)
+
+    # Part 1: 0.35s .. 8.85s (8.50s) from original PS2 startup (Sony Computer Entertainment + Crystal Towers dive)
+    s0 = int(0.35 * sr)
+    dur1 = int(8.50 * sr)
+    seg1 = stereo[s0:s0 + dur1].copy()
+    # Smooth fade-in (50ms) and fade-out over the last 1.1s (7.4s .. 8.5s)
+    fi = int(0.05 * sr)
+    seg1[:fi] *= np.linspace(0.0, 1.0, fi, dtype=np.float32)[:, None]
+    fo = int(1.10 * sr)
+    seg1[-fo:] *= np.linspace(1.0, 0.0, fo, dtype=np.float32)[:, None]
+    out[:len(seg1)] += seg1
+
+    # Part 2: 14.05s .. 16.45s (2.40s) authentic PlayStation 2 logo chime layered at t = 7.15s
+    c0 = int(14.05 * sr)
+    cdur = int(2.40 * sr)
+    chime = stereo[c0:c0 + cdur].copy()
+    cfi = int(0.08 * sr)
+    chime[:cfi] *= np.linspace(0.0, 1.0, cfi, dtype=np.float32)[:, None]
+    cfo = int(0.45 * sr)
+    chime[-cfo:] *= np.linspace(1.0, 0.0, cfo, dtype=np.float32)[:, None]
+
+    start_chime = int(7.15 * sr)
+    end_chime = min(target_samples, start_chime + len(chime))
+    out[start_chime:end_chime] += chime[:end_chime - start_chime] * 0.95
+
+    # Soft master to peak = 0.70 (matches test_audio_soundtrack_valid 0.65..0.75)
+    peak = float(np.max(np.abs(out))) or 1.0
+    out = out * (0.70 / peak)
+    pcm16 = np.clip(out * 32767.0, -32768, 32767).astype(np.int16)
+
+    with wave.open(AUDIO_WAV, "wb") as wf:
+        wf.setnchannels(2)
+        wf.setsampwidth(2)
+        wf.setframerate(sr)
+        wf.writeframes(pcm16.tobytes())
+    print(f"[✓] Authentic PS2 soundtrack mastered: {AUDIO_WAV} ({DURATION}s, peak=0.70)")
 
 
 # -----------------------------------------------------------------------------
-# Main orchestration: stream frames to ffmpeg
+# Main orchestration: combine original PS2 video + 4K XFCE background via FFmpeg
 # -----------------------------------------------------------------------------
 def main():
     print("=" * 68)
-    print("  PS2 XFCE 4.20 STARTUP VIDEO GENERATOR")
+    print("  PS2 XFCE 4.20 STARTUP VIDEO GENERATOR (ORIGINAL PS2 + 4K XFCE BG)")
     print("=" * 68)
     print(f"[*] Target: {WIDTH}x{HEIGHT} @ {FPS} FPS ({TOTAL_FRAMES} frames, {DURATION}s)")
+    t_start = time.time()
 
-    if not os.path.exists(AUDIO_WAV) or "--audio" in sys.argv:
-        print("[*] Synthesising boot audio...")
-        from generate_audio import generate_ps2_soundtrack
-        generate_ps2_soundtrack(AUDIO_WAV)
+    export_greeter_assets()
+    build_authentic_ps2_audio()
+
+    if not os.path.exists(ORIG_SOURCE_MP4):
+        sys.exit(f"[!] Missing original PS2 source video: {ORIG_SOURCE_MP4}")
+
+    # Cross-fade from original PS2 video (0.35s..8.75s = 8.40s) into the 4K background.png
+    # over 1.0s (7.40s..8.40s), holding the static final frame from 8.40s..9.60s (1.20s).
+    filter_complex = (
+        f"[0:v]trim=start=0.35:duration=8.40,setpts=PTS-STARTPTS,"
+        f"fps={FPS},crop=1340:980:50:50,"
+        f"scale={WIDTH}:{HEIGHT}:flags=lanczos,setsar=1,format=yuv420p[ps2];"
+        f"[1:v]scale={WIDTH}:{HEIGHT}:flags=lanczos,loop=loop=135:size=1:start=0,"
+        f"fps={FPS},setsar=1,format=yuv420p[bg];"
+        f"[ps2][bg]xfade=transition=fade:duration=1.00:offset=7.40,"
+        f"scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[v]"
+    )
 
     ffmpeg_cmd = [
         "ffmpeg", "-y", "-loglevel", "error",
-        "-f", "rawvideo", "-pix_fmt", "bgra",
-        "-s", f"{WIDTH}x{HEIGHT}", "-r", str(FPS),
-        "-i", "-",
+        "-i", ORIG_SOURCE_MP4,
+        "-i", GREETER_BG,
         "-i", AUDIO_WAV,
-        # Light temporal grain prevents banding in the dark gradients; explicit
-        # BT.709 so the decoded last frame matches the PNG handed to SDDM.
-        "-vf", "noise=alls=2:allf=t,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p",
-        "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-tune", "film",
+        "-filter_complex", filter_complex,
+        "-map", "[v]", "-map", "2:a",
+        "-frames:v", str(TOTAL_FRAMES),
+        "-c:v", "libx264", "-preset", "slow", "-crf", "15", "-tune", "film",
         "-g", "60", "-profile:v", "high",
         "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
         "-color_range", "tv",
@@ -803,23 +955,9 @@ def main():
         "-shortest", "-movflags", "+faststart",
         FINAL_MP4,
     ]
-    proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
+    print("[*] Encoding master startup video with Lanczos scaling & smooth xfade...")
+    subprocess.run(ffmpeg_cmd, check=True)
 
-    t_start = time.time()
-    workers = min(8, multiprocessing.cpu_count())
-    print(f"[*] Rendering across {workers} workers...")
-    with multiprocessing.Pool(processes=workers) as pool:
-        for n, frame_bytes in enumerate(pool.imap(render_single_frame, range(TOTAL_FRAMES), chunksize=4), 1):
-            proc.stdin.write(frame_bytes)
-            if n % 60 == 0 or n == TOTAL_FRAMES:
-                rate = n / max(0.001, time.time() - t_start)
-                print(f"    -> {n:3d}/{TOTAL_FRAMES} | {rate:4.1f} FPS", end="\r", flush=True)
-    print()
-    proc.stdin.close()
-    if proc.wait() != 0:
-        sys.exit("[!] FFmpeg failed")
-
-    export_greeter_assets()
     size_mb = os.path.getsize(FINAL_MP4) / (1024.0 * 1024.0)
     print(f"[✓] {FINAL_MP4} ({size_mb:.2f} MB, {time.time() - t_start:.1f}s)")
 

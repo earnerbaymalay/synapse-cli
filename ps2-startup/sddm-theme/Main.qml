@@ -62,6 +62,7 @@ Item {
         source: config.stringValue("background")
         fillMode: Image.PreserveAspectCrop
         smooth: true
+        mipmap: true
         cache: false
     }
 

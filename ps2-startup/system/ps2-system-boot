@@ -29,18 +29,19 @@ setsid mpv \
     --load-commands=no --load-context-menu=no --load-positioning=no \
     --load-auto-profiles=no --ytdl=no \
     --no-input-default-bindings --input-conf="$SHARE/input.conf" --no-input-terminal \
-    --fs --keep-open=always --no-osd-bar --osd-level=0 --cursor-autohide=always \
+    --fs --keep-open=always --force-window=immediate --profile=fast \
+    --no-osd-bar --osd-level=0 --cursor-autohide=always \
     --vo=gpu --hwdec=auto-safe --video-sync=display-resample \
     --ao=alsa,pipewire,pulse \
     --title="PS2 System Boot" \
     "$VIDEO" </dev/null >/dev/null 2>&1 &
 pid=$!
 
-# Return to SDDM as soon as the last frame is up (or mpv died); cap at 25 s.
-for _ in $(seq 250); do
+# Return to SDDM as soon as the last frame is up (or mpv died); poll at 20ms, cap at 20 s.
+for _ in $(seq 1000); do
     [[ -e $EOF_FLAG ]] && break
     kill -0 "$pid" 2>/dev/null || break
-    sleep 0.1
+    sleep 0.02
 done
 
 # The greeter maps above the frozen frame; retire mpv once it is covered.

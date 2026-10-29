@@ -190,9 +190,19 @@ remove_greeter() {
 install_boot_sequence() {
     install_system_boot
     install_greeter
+    # Sync XFCE 4.20 desktop wallpaper to the 4K PS2 background for seamless SDDM -> desktop handoff
+    if command -v xfconf-query >/dev/null 2>&1; then
+        for prop in $(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep '/last-image$'); do
+            local ws_prefix="${prop%/last-image}"
+            xfconf-query -c xfce4-desktop -p "$prop" -s "$THEME_SRC/background.png" 2>/dev/null || true
+            xfconf-query -c xfce4-desktop -p "$ws_prefix/image-style" -s 5 2>/dev/null || true
+            xfconf-query -c xfce4-desktop -p "$ws_prefix/backdrop-cycle-enable" -s false 2>/dev/null || true
+        done
+        echo "[✓] XFCE 4.20 desktop wallpaper synced to 4K background ($THEME_SRC/background.png)."
+    fi
     # The animation now plays before login; don't replay it inside the session.
     [[ -f "$AUTOSTART_FILE" ]] && remove_autostart
-    echo "[✓] Boot sequence: PS2 animation -> PS2 XFCE login (SDDM) -> desktop"
+    echo "[✓] Boot sequence: PS2 animation -> PS2 XFCE login (SDDM) -> 4K XFCE 4.20 desktop"
 }
 
 remove_boot_sequence() {

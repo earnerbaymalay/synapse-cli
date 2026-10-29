@@ -28,7 +28,8 @@ def test_video_exists_and_valid():
     assert int(width) == 1920
     assert int(height) == 1080
     assert r_frame_rate == "60/1"
-    assert int(nb_frames) in (720, 804)
+    assert int(nb_frames) in (576, 720, 804)
+    assert os.path.exists(os.path.join(PS2_DIR, "original_ps2_source.mp4")), "Original PS2 source video must exist"
 
 def test_audio_soundtrack_valid():
     assert os.path.exists(AUDIO_PATH), "Audio file ps2_startup.wav must exist"
@@ -96,7 +97,14 @@ def test_final_frames_static_and_match_greeter():
     last = r.render_single_frame(r.TOTAL_FRAMES - 1)
     settled = r.render_single_frame(int(r.T_STATIC * r.FPS) + 1)
     assert last == settled, "frames after T_STATIC must be identical for the SDDM hand-off"
-    assert os.path.exists(os.path.join(PS2_DIR, "sddm-theme", "background.png"))
+    bg_path = os.path.join(PS2_DIR, "sddm-theme", "background.png")
+    assert os.path.exists(bg_path)
+    res = subprocess.run([
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=width,height", "-of", "csv=p=0", bg_path
+    ], capture_output=True, text=True, check=True)
+    w, h = map(int, res.stdout.strip().split(","))
+    assert (w, h) == (3840, 2160), f"Greeter & XFCE background must be 4K 3840x2160, got {w}x{h}"
 
 
 def test_sddm_theme_files():
