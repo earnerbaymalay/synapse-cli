@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""
+agy-feed - Live feed monitor for the main AGY session on Monitor 2.
+Displays Catppuccin Mocha formatted real-time events from transcript & feed.log.
+"""
+
+import os
+import sys
+import time
+import json
+import re
+import glob
+import subprocess
+import ctypes
+
+# Catppuccin Mocha Palette
+MAUVE    = "\033[38;2;203;166;247m"
+LAVENDER = "\033[38;2;180;190;254m"
+SAPPHIRE = "\033[38;2;116;199;236m"
+BLUE     = "\033[38;2;137;180;250m"
+TEAL     = "\033[38;2;148;226;213m"
+GREEN    = "\033[38;2;166;227;161m"
+PEACH    = "\033[38;2;250;179;135m"
+YELLOW   = "\033[38;2;249;226;175m"
+RED      = "\033[38;2;243;139;168m"
+TEXT     = "\033[38;2;205;214;244m"
+SUBTEXT  = "\033[38;2;166;173;200m"
+DIM      = "\033[38;2;108;112;134m"
+BOLD     = "\033[1m"
+RESET    = "\033[0m"
+
+STATE_DIR = os.path.expanduser(os.environ.get("XDG_STATE_HOME", "~/.local/state") + "/agy-console")
+FEED_LOG = os.path.join(STATE_DIR, "feed.log")
+TARGET_FILE = os.path.join(STATE_DIR, "target.json")
+
+def detect_main_session():
+    """Detect the AGY session running on Monitor 2."""
+    try:
+        X11 = ctypes.cdll.LoadLibrary('libX11.so.6')
+        X11.XOpenDisplay.restype = ctypes.c_void_p
+        X11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        d = X11.XOpenDisplay(None)
+
+        X11.XGetGeometry.argtypes = [
+            ctypes.c_void_p, ctypes.c_ulong, ctypes.POINTER(ctypes.c_ulong),
+            ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_uint), ctypes.POINTER(ctypes.c_uint),
+            ctypes.POINTER(ctypes.c_uint), ctypes.POINTER(ctypes.c_uint)
+        ]
+        X11.XTranslateCoordinates.argtypes = [
+            ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong,
+            ctypes.c_int, ctypes.c_int,
+            ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_ulong)
+        ]
+
+        def get_win_x(wid_int):
+            root = ctypes.c_ulong()
+            x = ctypes.c_int(); y = ctypes.c_int()
+            w = ctypes.c_uint(); h = ctypes.c_uint()
+            bw = ctypes.c_uint(); depth = ctypes.c_uint()
+            X11.XGetGeometry(d, wid_int, ctypes.byref(root),
+                             ctypes.byref(x), ctypes.byref(y),
+                             ctypes.byref(w), ctypes.byref(h),
+                             ctypes.byref(bw), ctypes.byref(depth))
+            rx = ctypes.c_int(); ry = ctypes.c_int(); child = ctypes.c_ulong()
+            X11.XTranslateCoordinates(d, wid_int, root.value, 0, 0, ctypes.byref(rx), ctypes.byref(ry), ctypes.byref(child))
+            return rx.value
+    except Exception:
+        get_win_x = lambda wid: 1920
+
+    # Read target.json if already valid
+    if os.path.exists(TARGET_FILE):
+        try:
+            with open(TARGET_FILE, 'r') as f:
+                data = json.load(f)
+                if os.path.exists(f"/proc/{data.get('agy_pid')}"):
+                    return data
+        except Exception:
+            pass
+
+    # Discover running kitty processes
+    pids = subprocess.check_output(['pgrep', 'kitty']).decode().split()
+    target_data = None
+    for p in pids:
+        sock = f"unix:@kitty-{p}"
+        try:
+            out = subprocess.check_output(['kitty', '@', '--to', sock, 'ls'], stderr=subprocess.DEVNULL).decode()
+            data = json.loads(out)
+            for os_win in data:
+                wid = os_win.get('platform_window_id')
+                x_pos = get_win_x(wid) if wid else 0
+                for tab in os_win.get('tabs', []):
+                    for win in tab.get('windows', []):
+                        for proc in win.get('foreground_processes', []):
+                            cmd = ' '.join(proc.get('cmdline', []))
+                            if 'agy' in cmd:
+                                cand = {
+                                    "kitty_pid": int(p),
+                                    "socket": sock,
+                                    "window_id": win.get('id'),
+                                    "platform_wid": wid,
+                                    "agy_pid": proc.get('pid'),
+                                    "x_pos": x_pos,
+                                    "is_monitor2": (x_pos >= 1920)
+                                }
+                                if cand["is_monitor2"]:
+                                    target_data = cand
+                                    break
+                                elif not target_data:
+                                    target_data = cand
+        except Exception:
+            pass
+
+    if not target_data:
+        target_data = {
+            "kitty_pid": 409500,
+            "socket": "unix:@kitty-409500",
+            "window_id": 1,
+            "agy_pid": 458346,
+            "is_monitor2": True
+        }
+
+    # Resolve active conversation ID & log file
+    agy_pid = target_data.get("agy_pid")
+    conv_id = None
+    log_file = None
+    if agy_pid and os.path.exists(f"/proc/{agy_pid}/fd"):
+        for fd in glob.glob(f"/proc/{agy_pid}/fd/*"):
+            try:
+                tgt = os.readlink(fd)
+                if 'antigravity-cli/log/cli-' in tgt:
+                    log_file = tgt
+            except Exception:
+                pass
+
+    if log_file and os.path.exists(log_file):
+        try:
+            with open(log_file, 'r', errors='ignore') as f:
+                lines = f.readlines()
+                for line in reversed(lines):
+                    m = re.search(r'conversation ([0-9a-fA-F-]{36})', line)
+                    if m:
+                        conv_id = m.group(1)
+                        break
+        except Exception:
+            pass
+
+    target_data["conv_id"] = conv_id or "8c5cb59b-fd9e-46c3-ac97-58c7f4a9d53e"
+    target_data["log_file"] = log_file
+    target_data["transcript"] = os.path.expanduser(f"~/.gemini/antigravity-cli/brain/{target_data['conv_id']}/.system_generated/logs/transcript.jsonl")
+
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(TARGET_FILE, 'w') as f:
+        json.dump(target_data, f, indent=2)
+
+    return target_data
+
+def format_transcript_step(d):
+    """Format a single transcript record into a colored event line."""
+    step = d.get('step_index', 0)
+    stype = d.get('type')
+    src = d.get('source')
+    tcalls = d.get('tool_calls', [])
+    content = d.get('content', '')
+    ts = time.strftime('%H:%M:%S')
+
+    lines = []
+    if tcalls:
+        for tc in tcalls:
+            name = tc.get('name')
+            args = tc.get('args', {})
+            cmd = args.get('CommandLine') or args.get('Path') or list(args.values())[0] if args else ''
+            # Clean quotes
+            cmd_str = str(cmd).strip('\'"')
+            if len(cmd_str) > 85:
+                cmd_str = cmd_str[:82] + "..."
+            lines.append(f"{DIM}[{ts}]{RESET} {TEAL}⚙ Tool Call #{step}:{RESET} {BOLD}{name}{RESET} {SUBTEXT}({cmd_str}){RESET}")
+    elif src == 'USER_EXPLICIT' or stype == 'USER_INPUT':
+        # Clean request tags
+        clean = re.sub(r'<[^>]+>', '', content).strip()
+        first_line = clean.split('\n')[0] if clean else ''
+        if len(first_line) > 80:
+            first_line = first_line[:77] + "..."
+        lines.append(f"{DIM}[{ts}]{RESET} {MAUVE}👤 User Prompt #{step}:{RESET} {TEXT}\"{first_line}\"{RESET}")
+    elif stype == 'GENERIC' and content:
+        # Tool completion / command output
+        c_lines = [c.strip() for c in content.split('\n') if c.strip() and not c.startswith('Created At:') and not c.startswith('Completed At:')]
+        if c_lines:
+            first = c_lines[0]
+            if len(first) > 85:
+                first = first[:82] + "..."
+            lines.append(f"{DIM}[{ts}]{RESET} {GREEN}✔ Result #{step}:{RESET} {SUBTEXT}{first}{RESET}")
+    return lines
+
+def main():
+    os.system("clear")
+    target = detect_main_session()
+    
+    # Header banner
+    print(f"{MAUVE}╭─────────────────────────────────────────────────────────────────────────────╮{RESET}")
+    print(f"{MAUVE}│{RESET}  {BOLD}🌟 AGY SIDE CONSOLE ─ LINKED TO MONITOR 2 (HDMI-1){RESET}                       {MAUVE}│{RESET}")
+    print(f"{MAUVE}├─────────────────────────────────────────────────────────────────────────────┤{RESET}")
+    print(f"{MAUVE}│{RESET}  {SUBTEXT}Target PID:{RESET} {BOLD}{PEACH}{target['agy_pid']}{RESET}  │ {SUBTEXT}Socket:{RESET} {TEAL}{target['socket']}{RESET}  │ {SUBTEXT}Window ID:{RESET} {LAVENDER}{target['window_id']}{RESET}     {MAUVE}│{RESET}")
+    print(f"{MAUVE}│{RESET}  {SUBTEXT}Conversation:{RESET} {SAPPHIRE}{target.get('conv_id')[:32]}...{RESET}       {MAUVE}│{RESET}")
+    print(f"{MAUVE}│{RESET}  {DIM}Status: Streaming active telemetry & input feed in real-time...{RESET}        {MAUVE}│{RESET}")
+    print(f"{MAUVE}╰─────────────────────────────────────────────────────────────────────────────╯{RESET}")
+    print()
+
+    # Touch feed log
+    os.makedirs(STATE_DIR, exist_ok=True)
+    if not os.path.exists(FEED_LOG):
+        open(FEED_LOG, 'w').close()
+
+    feed_f = open(FEED_LOG, 'r')
+    feed_f.seek(0, os.SEEK_END)
+
+    transcript_path = target.get("transcript")
+    trans_f = None
+    last_trans_pos = 0
+    if transcript_path and os.path.exists(transcript_path):
+        trans_f = open(transcript_path, 'r', errors='ignore')
+        # Seek near end to catch recent events
+        trans_f.seek(0, os.SEEK_END)
+        end_pos = trans_f.tell()
+        trans_f.seek(max(0, end_pos - 8000), os.SEEK_SET)
+        # Skip incomplete first line if not at 0
+        if trans_f.tell() > 0:
+            trans_f.readline()
+        last_trans_pos = trans_f.tell()
+
+    while True:
+        activity = False
+        # 1. Check custom feed.log
+        feed_line = feed_f.readline()
+        if feed_line:
+            sys.stdout.write(feed_line)
+            sys.stdout.flush()
+            activity = True
+
+        # 2. Check transcript.jsonl
+        if not trans_f or not os.path.exists(transcript_path):
+            if transcript_path and os.path.exists(transcript_path):
+                trans_f = open(transcript_path, 'r', errors='ignore')
+                trans_f.seek(0, os.SEEK_END)
+        else:
+            t_line = trans_f.readline()
+            if t_line and t_line.strip():
+                try:
+                    d = json.loads(t_line)
+                    ev_lines = format_transcript_step(d)
+                    for el in ev_lines:
+                        print(el)
+                    sys.stdout.flush()
+                    activity = True
+                except Exception:
+                    pass
+
+        if not activity:
+            time.sleep(0.3)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

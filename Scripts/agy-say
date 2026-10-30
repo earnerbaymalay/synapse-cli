@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# agy-say "message" [info|milestone|attention|done]
+# Appends to the AGY side-console feed; attention/milestone also raise a desktop notification.
+set -euo pipefail
+FEED="${XDG_STATE_HOME:-$HOME/.local/state}/agy-console/feed.log"
+mkdir -p "$(dirname "$FEED")"
+msg="${1:?message required}"; level="${2:-info}"
+case "$level" in
+    attention) icon="⚠"; color="\033[1;38;2;243;139;168m" ;;
+    milestone) icon="◆"; color="\033[1;38;2;203;166;247m" ;;
+    done)      icon="✔"; color="\033[1;38;2;166;227;161m" ;;
+    *)         icon="·"; color="\033[38;2;137;180;250m" ;;
+esac
+printf "%b%s %s  %s\033[0m\n" "$color" "$(date +%H:%M)" "$icon" "$msg" >> "$FEED"
+if [[ "$level" == attention || "$level" == milestone ]] && command -v notify-send >/dev/null; then
+    urgency=normal; [[ "$level" == attention ]] && urgency=critical
+    notify-send -u "$urgency" -a "AGY Console" "AGY Monitor 2: $level" "$msg" 2>/dev/null || true
+fi

@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# AGY Side Console: live telemetry feed (top) + direct input pane (bottom) in a kitty window via tmux.
+# Linked directly to the main AGY session running on Monitor 2 (HDMI-1).
+set -euo pipefail
+
+DIR="${XDG_STATE_HOME:-$HOME/.local/state}/agy-console"
+mkdir -p "$DIR"
+touch "$DIR/feed.log"
+
+# Inner runner inside kitty
+if [[ "${1:-}" == "--inner" ]]; then
+    # Kill existing session if present
+    tmux has-session -t agy-console 2>/dev/null && tmux kill-session -t agy-console
+    
+    # 1. Start tmux with agy-feed in top pane
+    tmux new-session -d -s agy-console "printf '\033]2;AGY Side Console (Monitor 2)\007'; /home/ebaymlay/.local/bin/agy-feed"
+    # 2. Split window vertically, reserving 8 lines for the input pane
+    tmux split-window -v -l 8 -t agy-console "/home/ebaymlay/.local/bin/agy-inbox"
+    # 3. Clean border and styling
+    tmux set -t agy-console status off
+    tmux set -t agy-console pane-border-style "fg=#313244"
+    tmux set -t agy-console pane-active-border-style "fg=#cba6f7"
+    
+    exec tmux attach -t agy-console
+fi
+
+# Outer launcher: ensure any old session is cleared, then launch Kitty
+tmux has-session -t agy-console 2>/dev/null && tmux kill-session -t agy-console
+
+TARGET_MON="${1:-}"
+
+# Launch kitty window
+setsid -f kitty --title "AGY Side Console (Monitor 2)" \
+    -o initial_window_width=860 -o initial_window_height=600 \
+    -o remember_window_size=no \
+    /home/ebaymlay/.local/bin/agy-console --inner >/dev/null 2>&1 &
+
+# If --mon2 or monitor 2 requested, snap window to monitor 2
+if [[ "$TARGET_MON" == "--mon2" || "$TARGET_MON" == "mon2" ]]; then
+    (
+        sleep 0.8
+        python3 -c "
+import subprocess, time, ctypes
+
+X11 = ctypes.cdll.LoadLibrary('libX11.so.6')
+X11.XOpenDisplay.restype = ctypes.c_void_p
+X11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+d = X11.XOpenDisplay(None)
+
+X11.XMoveResizeWindow.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_int, ctypes.c_uint, ctypes.c_uint]
+
+try:
+    out = subprocess.check_output(['xprop', '-root', '_NET_CLIENT_LIST']).decode()
+    win_ids = [w.strip() for w in out.split('#')[1].split(',')]
+    for wid_str in win_ids:
+        wid = int(wid_str, 16)
+        name = subprocess.check_output(['xprop', '-id', hex(wid), 'WM_NAME'], stderr=subprocess.DEVNULL).decode()
+        if 'AGY Side Console' in name:
+            # Move to Monitor 2 (x=2000, y=100, w=860, h=600)
+            X11.XMoveResizeWindow(d, wid, 2000, 100, 860, 600)
+            X11.XFlush(d)
+            break
+except Exception:
+    pass
+" 2>/dev/null || true
+    ) &
+fi

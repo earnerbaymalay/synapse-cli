@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""
+agy-inbox - Side input pane for dispatching messages directly to the main AGY session on Monitor 2.
+"""
+
+import os
+import sys
+import json
+import time
+import readline
+import subprocess
+
+# Catppuccin Mocha Colors
+MAUVE    = "\033[38;2;203;166;247m"
+LAVENDER = "\033[38;2;180;190;254m"
+SAPPHIRE = "\033[38;2;116;199;236m"
+BLUE     = "\033[38;2;137;180;250m"
+TEAL     = "\033[38;2;148;226;213m"
+GREEN    = "\033[38;2;166;227;161m"
+PEACH    = "\033[38;2;250;179;135m"
+YELLOW   = "\033[38;2;249;226;175m"
+RED      = "\033[38;2;243;139;168m"
+TEXT     = "\033[38;2;205;214;244m"
+SUBTEXT  = "\033[38;2;166;173;200m"
+DIM      = "\033[38;2;108;112;134m"
+BOLD     = "\033[1m"
+RESET    = "\033[0m"
+
+STATE_DIR = os.path.expanduser(os.environ.get("XDG_STATE_HOME", "~/.local/state") + "/agy-console")
+FEED_LOG = os.path.join(STATE_DIR, "feed.log")
+TARGET_FILE = os.path.join(STATE_DIR, "target.json")
+HISTORY_FILE = os.path.join(STATE_DIR, "inbox.history")
+INBOX_MD = os.path.join(STATE_DIR, "inbox.md")
+
+os.makedirs(STATE_DIR, exist_ok=True)
+
+# Readline history persistence
+if os.path.exists(HISTORY_FILE):
+    try:
+        readline.read_history_file(HISTORY_FILE)
+    except Exception:
+        pass
+readline.set_history_length(1000)
+
+def load_target():
+    if os.path.exists(TARGET_FILE):
+        try:
+            with open(TARGET_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "socket": "unix:@kitty-409500",
+        "window_id": 1,
+        "agy_pid": 458346,
+        "conv_id": "8c5cb59b-fd9e-46c3-ac97-58c7f4a9d53e"
+    }
+
+def send_to_main_session(sock, win_id, text):
+    """Dispatch text into the main AGY terminal window via Kitty remote control."""
+    cmd = ["kitty", "@", "--to", sock, "send-text", "--match", f"id:{win_id}", text + "\r"]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    return res.returncode == 0, res.stderr
+
+def log_feed(msg, level="info"):
+    color = BLUE
+    icon = "·"
+    if level == "sent":
+        color = GREEN
+        icon = "📤"
+    elif level == "attention":
+        color = RED
+        icon = "⚠"
+    elif level == "milestone":
+        color = MAUVE
+        icon = "◆"
+
+    ts = time.strftime("%H:%M:%S")
+    line = f"{color}{ts} {icon}  {msg}{RESET}\n"
+    with open(FEED_LOG, "a") as f:
+        f.write(line)
+
+def log_inbox_md(text):
+    with open(INBOX_MD, "a") as f:
+        f.write(f"- {time.strftime('%Y-%m-%d %H:%M')} {text}\n")
+
+def cmd_peek(sock, win_id):
+    """Inspect current terminal output of the main session."""
+    cmd = ["kitty", "@", "--to", sock, "get-text", "--match", f"id:{win_id}"]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode == 0:
+        lines = [l for l in res.stdout.split('\n') if l.strip()]
+        last_lines = lines[-12:] if len(lines) > 12 else lines
+        print(f"\n{TEAL}╭─── Main Session Screen Preview (Monitor 2) ────────────────────────╮{RESET}")
+        for l in last_lines:
+            print(f"{SUBTEXT}│{RESET} {l}")
+        print(f"{TEAL}╰────────────────────────────────────────────────────────────────────╯{RESET}\n")
+    else:
+        print(f"{RED}Failed to peek: {res.stderr}{RESET}")
+
+def print_help():
+    print(f"\n{BOLD}{MAUVE}AGY Side Input Console Commands:{RESET}")
+    print(f"  {TEAL}:peek{RESET} or {TEAL}:screen{RESET}  ─ Preview last 12 screen lines from Monitor 2")
+    print(f"  {TEAL}:status{RESET}        ─ Show target PID, socket, and conversation details")
+    print(f"  {TEAL}:say <msg>     ─ Broadcast to feed log & desktop notification without injecting")
+    print(f"  {TEAL}:clear{RESET}         ─ Clear the screen")
+    print(f"  {TEAL}:exit{RESET} or {TEAL}:quit{RESET}   ─ Exit this side input console")
+    print(f"  {DIM}Any other line is instantly sent into the active AGY session on Monitor 2.{RESET}\n")
+
+def main():
+    target = load_target()
+    sock = target.get("socket", "unix:@kitty-409500")
+    win_id = target.get("window_id", 1)
+    agy_pid = target.get("agy_pid", 458346)
+
+    print(f"{BOLD}{LAVENDER}✎ Type a prompt/instruction for Monitor 2 AGY and press Enter{RESET}")
+    print(f"{DIM}Commands: :peek (preview screen) · :status · :help · Ctrl-C to close{RESET}")
+
+    while True:
+        try:
+            prompt = f"{MAUVE}[Monitor 2]{RESET} {BOLD}›{RESET} "
+            line = input(prompt).strip()
+            if not line:
+                continue
+
+            # Command routing
+            if line in (":help", ":h", "?"):
+                print_help()
+                continue
+            elif line in (":peek", ":screen", ":p"):
+                cmd_peek(sock, win_id)
+                continue
+            elif line in (":status", ":s"):
+                print(f"{SAPPHIRE}Target:{RESET} PID {agy_pid} | Socket: {sock} | Win: {win_id}")
+                print(f"{SAPPHIRE}Conversation:{RESET} {target.get('conv_id')}")
+                continue
+            elif line.startswith(":say "):
+                msg = line[5:].strip()
+                log_feed(msg, "milestone")
+                print(f"{GREEN}  ✔ Logged note to feed{RESET}")
+                continue
+            elif line in (":clear", ":cls"):
+                os.system("clear")
+                continue
+            elif line in (":exit", ":quit", ":q"):
+                break
+
+            # Send directly to main AGY session
+            ok, err = send_to_main_session(sock, win_id, line)
+            if ok:
+                log_feed(f"Dispatched: \"{line}\"", "sent")
+                log_inbox_md(line)
+                print(f"{GREEN}  ✔ Dispatched to Monitor 2 (PID {agy_pid}){RESET}")
+            else:
+                print(f"{RED}  ✘ Transmission failed: {err}{RESET}")
+
+            try:
+                readline.write_history_file(HISTORY_FILE)
+            except Exception:
+                pass
+
+        except (KeyboardInterrupt, EOFError):
+            print(f"\n{DIM}Exiting AGY side console input.{RESET}")
+            break
+
+if __name__ == "__main__":
+    main()
