@@ -29,3 +29,4 @@ lab-ap-credentials.txt
 .pytest_cache/
 .ruff_cache/
 uv.lock
+.agents/teamwork/
