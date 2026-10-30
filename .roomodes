@@ -1,0 +1,12 @@
+{
+  "customModes": [
+    {
+      "customInstructions": "",
+      "groups": [
+        "*"
+      ],
+      "roleDefinition": "",
+      "slug": "opencode-agent"
+    }
+  ]
+}
