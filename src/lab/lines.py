@@ -310,7 +310,7 @@ def main(hours: float = 24, fmt: str = "text") -> int:
     synapse_bin = shutil.which("synapse") or os.path.expanduser("~/.local/bin/synapse")
     if os.path.isfile(synapse_bin) and os.access(synapse_bin, os.X_OK):
         try:
-            res = subprocess.run([synapse_bin, "vibe", "-h", str(hours), "-f", fmt], check=True)
+            res = subprocess.run([synapse_bin, "vibe", "--hours", str(hours), "-f", fmt], check=True)
             return res.returncode
         except Exception:
             pass
