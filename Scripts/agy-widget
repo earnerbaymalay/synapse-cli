@@ -143,13 +143,22 @@ def get_telemetry():
     except Exception:
         mac_badge = f"{DIM}🔒 wlan0 (N/A){RESET}"
 
-    # 2. DNS-over-TLS
+    # 2. DNS-over-TLS: global must be Quad9 DoT; any link still carrying
+    #    DHCP/RA-pushed servers is flagged (dns-lock should strip them)
     try:
-        res = subprocess.run(["resolvectl", "status", "wlan0"], capture_output=True, text=True, timeout=0.15)
-        if "+DNSOverTLS" in res.stdout and "9.9.9.9" in res.stdout:
-            dot_badge = f"{GREEN}🛡️ Quad9 DoT:853{RESET}"
+        res = subprocess.run(["resolvectl", "status"], capture_output=True, text=True, timeout=0.5)
+        sections = re.split(r"\n\s*\n", res.stdout)
+        glob = next((s for s in sections if s.startswith("Global")), "")
+        foreign = [s for s in sections if s.startswith("Link")
+                   and re.search(r"DNS Servers?:", s) and "quad9" not in s
+                   and not re.search(r"DNS Servers?:\s*(9\.9\.9\.9|149\.112\.112\.112|2620:fe::)", s)]
+        if "+DNSOverTLS" in glob and "quad9" in glob:
+            if foreign:
+                dot_badge = f"{YELLOW}🛡️ DoT · DHCP DNS{RESET}"
+            else:
+                dot_badge = f"{GREEN}🛡️ Quad9 DoT:853{RESET}"
         else:
-            dot_badge = f"{YELLOW}🛡️ Plain DNS{RESET}"
+            dot_badge = f"{RED}🛡️ Plain DNS{RESET}"
     except Exception:
         dot_badge = f"{DIM}🛡️ DoT (N/A){RESET}"
 

@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# LLM Quickfire Panel — Unified AI Command Center, Local LLM Launcher & Theme Engine
+# Designed for EndeavourOS / SynapseOS (Dell Latitude 7490)
+set -euo pipefail
+
+# shellcheck disable=SC2034  # VERSION kept for reference/banner use
+VERSION="1.0.0"
+WORKSPACE_DIR="${SYNAPSE_WORKSPACE:-$HOME/Desktop/AI CLI WORK}"
+# shellcheck disable=SC2034  # SYNAPSE_DIR reserved for Synapse integration paths
+SYNAPSE_DIR="$HOME/work/synapse"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/quickfire"
+THEME_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/rofi/quickfire-theme.rasi"
+THEME_SWITCHER="$(dirname "$(realpath "$0")")/quickfire-theme"
+
+mkdir -p "$CONFIG_DIR"
+
+# Autostart mode (delayed startup on desktop login)
+if [[ "${1:-}" == "--autostart" ]]; then
+    sleep 1.2
+    # Ensure current theme exists
+    if [[ ! -f "$THEME_FILE" ]]; then
+        "$THEME_SWITCHER" catppuccin-mocha >/dev/null 2>&1 || true
+    fi
+    shift || true
+fi
+
+MODE="${1:-agy}"
+MODE="${MODE#--}"
+
+# Default theme fallback
+if [[ ! -f "$THEME_FILE" ]]; then
+    "$THEME_SWITCHER" catppuccin-mocha >/dev/null 2>&1 || true
+fi
+
+declare -A CMD_MAP
+SCRIPT_PATH="$(realpath "$0")"
+
+# -----------------------------------------------------------------------------
+# Dynamic Ollama Model Discovery
+# -----------------------------------------------------------------------------
+get_resident_models() {
+    ollama ps 2>/dev/null | awk 'NR>1 {print $1}' || true
+}
+
+get_installed_models() {
+    curl -s --max-time 1 http://127.0.0.1:11434/api/tags 2>/dev/null | jq -r '.models[]?.name' 2>/dev/null || true
+}
+
+# -----------------------------------------------------------------------------
+# Populate Command Map by Mode
+# -----------------------------------------------------------------------------
+if [[ "$MODE" == "claude" ]]; then
+    PROMPT="Claude Code Quickfire"
+    SWITCH_KEY="[MODE] 🔁 Switch Mode ➔ Antigravity Mode"
+    CMD_MAP["$SWITCH_KEY"]="$SCRIPT_PATH --agy"
+
+    CMD_MAP["[CLAUDE] ⚡ claude — Launch Claude Code Agent CLI"]="kitty --directory '$WORKSPACE_DIR' claude"
+    CMD_MAP["[CLAUDE] 💬 claude-console — Open Claude Side Console (Feed + Inbox)"]="claude-console"
+    CMD_MAP["[CLAUDE] ✎ console-say — Send message / alert to Claude Console"]="kitty --title 'Send Message to Claude Console' bash -c 'read -e -p \"Message for Claude: \" msg; [[ -n \"\$msg\" ]] && console-say \"\$msg\" info'"
+    CMD_MAP["[CLAUDE] 📥 console-inbox — View Claude incoming messages"]="kitty --hold bash -c \"cat \$HOME/.local/state/claude-console/inbox.md 2>/dev/null || echo 'Inbox empty'\""
+    CMD_MAP["[CLAUDE] 📊 lab lines — Vibe vs Hand attribution (Claude focus)"]="kitty --hold lab lines --hours 24"
+    CMD_MAP["[CLAUDE] 📋 CLAUDE.md — View Claude instructions & rules"]="kitty --hold cat '$WORKSPACE_DIR/CLAUDE.md'"
+    CMD_MAP["[CLAUDE] 🔄 Handover: Sync & Review AGENTS.md"]="kitty --hold cat '$WORKSPACE_DIR/AGENTS.md'"
+else
+    PROMPT="Antigravity Quickfire"
+    SWITCH_KEY="[MODE] 🔁 Switch Mode ➔ Claude Code Mode"
+    CMD_MAP["$SWITCH_KEY"]="$SCRIPT_PATH --claude"
+
+    # Antigravity CLI / AGY Workflows
+    CMD_MAP["[AGY] 🚀 agy — Launch Antigravity Interactive CLI"]="kitty --directory '$WORKSPACE_DIR' agy"
+    CMD_MAP["[AGY] 📖 agy skills — List available assistant skills"]="kitty --hold bash -c 'source ~/.bashrc && echo \"=== Builtin & Workspace Skills ===\"; ls -d ~/.gemini/antigravity-cli/builtin/skills/* \"$WORKSPACE_DIR/.agents/skills\"/* 2>/dev/null | xargs -n1 basename'"
+    CMD_MAP["[AGY] 🛠️ agy doctor — Check Antigravity daemon & MCP tools"]="kitty --hold bash -c 'echo \"Antigravity System Status:\"; which agy; ps aux | grep -E \"ollama|synapse\" | grep -v grep'"
+fi
+
+# -----------------------------------------------------------------------------
+# Global Dropdown Theme Switcher
+# -----------------------------------------------------------------------------
+CMD_MAP["[THEME] 🎨 Switch Theme Palette ➔ Dynamic Dropdown"]="$THEME_SWITCHER --menu"
+
+# -----------------------------------------------------------------------------
+# Dynamic Local AI Models (Ollama)
+# -----------------------------------------------------------------------------
+RESIDENT_MODELS=$(get_resident_models)
+INSTALLED_MODELS=$(get_installed_models)
+
+if [[ -n "$INSTALLED_MODELS" ]]; then
+    while IFS= read -r model; do
+        [[ -z "$model" ]] && continue
+        clean_name="${model%%:*}"
+        badge=""
+        if echo "$RESIDENT_MODELS" | grep -q "^$clean_name"; then
+            badge="[RAM 🟢 Active]"
+        fi
+        CMD_MAP["[AI $badge] ⚡ ask-$clean_name — Query $model"]="kitty --title 'Ask $model' bash -c 'read -e -p \"Ask $model: \" q; [[ -n \"\$q\" ]] && source ~/.bashrc && ollama run \"$model\" \"\$q\"; echo; read -p \"Press enter to close...\"'"
+    done <<< "$INSTALLED_MODELS"
+fi
+
+CMD_MAP["[AI] ai warm — Preload primary code model into RAM"]="bash -c 'source ~/.bashrc && ai warm && notify-send -i dialog-information \"AI Engine\" \"Pre-warmed Qwen 2.5 Coder into RAM\"'"
+CMD_MAP["[AI] ai flush — Stop resident models & free RAM"]="bash -c 'source ~/.bashrc && ai flush && notify-send -i dialog-information \"AI Engine\" \"Flushed resident models from RAM\"'"
+CMD_MAP["[AI] ai status — Show Ollama resident status & memory"]="kitty --hold bash -c 'source ~/.bashrc && ai status'"
+
+# -----------------------------------------------------------------------------
+# Synapse AI Core Integration
+# -----------------------------------------------------------------------------
+CMD_MAP["[SYNAPSE] 🧠 synapse sync — Bidirectional Brain synchronization"]="kitty --hold bash -c 'synapse sync --once && echo && echo \"[✓] Synapse Brain synchronization complete.\"'"
+CMD_MAP["[SYNAPSE] 🩺 synapse doctor — Real-time Brain integrity check"]="kitty --hold bash -c 'synapse doctor'"
+CMD_MAP["[SYNAPSE] 🎛️ synapse hud — Open Terminal Cockpit HUD"]="kitty --title 'Synapse Cockpit HUD' synapse hud"
+CMD_MAP["[SYNAPSE] 📊 synapse vibe — Vibe vs Hand line attribution (24h)"]="kitty --hold bash -c 'synapse vibe || lab lines --hours 24'"
+CMD_MAP["[SYNAPSE] 💾 synapse mem search — Cross-session AI agent memory"]="kitty --title 'Synapse Memory Search' bash -c 'read -e -p \"Query Agent Memory: \" q; [[ -n \"\$q\" ]] && synapse mem search \"\$q\"; echo; read -p \"Press enter to close...\"'"
+
+# -----------------------------------------------------------------------------
+# Lab, Security & Network Posture
+# -----------------------------------------------------------------------------
+CMD_MAP["[LAB] lab audit — Prime Directive privacy & stealth audit"]="kitty --hold lab audit"
+CMD_MAP["[LAB] lab pentest — Automated scoped capture, hash extract & AI audit"]="kitty --title 'Automated RF Pentest' bash -c 'lab pentest; echo; read -p \"Press enter to close...\"'"
+CMD_MAP["[LAB] lab status — Command Center telemetry dashboard"]="kitty --title 'Command Center Dashboard' lab status -w"
+CMD_MAP["[SEC] sec-status — Check MAC Randomization, DoT & Stealth"]="kitty --hold bash -c 'source ~/.bashrc && sec-status'"
+CMD_MAP["[SEC] dns-status — Show resolver, DoT & per-link DNS servers"]="kitty --hold bash -c 'resolvectl status'"
+CMD_MAP["[SEC] dns-lock install — Lock all connections to Quad9 DoT (sudo)"]="kitty --title 'DNS Lock Install' bash -c 'sudo \"$WORKSPACE_DIR/Scripts/system/install-dns-lock.sh\"; echo; read -p \"Press enter to close...\"'"
+CMD_MAP["[SEC] omega-snapshot — Snapshot configs to public omega-desktop"]="kitty --title 'Omega-Desktop Snapshot' bash -c 'read -e -p \"Snapshot description: \" d; [[ -n \"\$d\" ]] && ~/omega-desktop/bin/omega-snapshot \"\$d\" && echo \"Snapshot completed.\" && sleep 1.5'"
+
+# RF Pentest Lab Workflows
+CMD_MAP["[PENTEST] 🎯 Auto Pentest Workflow — Scoped capture, hash extract & AI audit"]="kitty --title 'Automated RF Pentest Workflow' bash -c '$WORKSPACE_DIR/pentest-scope/auto-pentest.sh; echo; read -p \"Press enter to close...\"'"
+CMD_MAP["[PENTEST] 📡 rf-lab status — Wireless monitor posture, uplink & BPF state"]="kitty --hold rf-lab status"
+CMD_MAP["[PENTEST] 🔍 rf-lab scan — Passive Wi-Fi beacon & AP survey (wlan0)"]="kitty --hold rf-lab scan"
+CMD_MAP["[PENTEST] 🛡️ rf-lab scope list — View authorized in-scope targets"]="kitty --hold rf-lab scope list"
+CMD_MAP["[PENTEST] ⚙️ rf-lab scope build — Recompile hardware BPF filter"]="kitty --hold rf-lab scope build"
+CMD_MAP["[PENTEST] 🤖 rf-lab analyze — AI security audit on latest PCAP"]="kitty --title 'AI PCAP Analysis' bash -c 'latest=\$(ls -t \$HOME/captures/*.pcap* 2>/dev/null | head -1); if [[ -n \"\$latest\" ]]; then rf-lab analyze \"\$latest\"; else echo \"No captures found in ~/captures\"; fi; echo; read -p \"Press enter to close...\"'"
+CMD_MAP["[PENTEST] 🌊 wavescope 2.4G — Launch 40 MHz RF spectrum visualizer"]="wavescope --interface wlan0 --channel 6 --width 40 --output \$HOME/captures/wavescope_2.4g.pcap"
+CMD_MAP["[PENTEST] 🌊 wavescope 5G — Launch 80 MHz RF spectrum visualizer (Ceiling)"]="wavescope --interface wlan0 --channel 40 --band 5g --width 80 --output \$HOME/captures/wavescope_5g.pcap"
+CMD_MAP["[PENTEST] 🪓 mitm-harvest — Intercept & harvest auth tokens (:8080)"]="kitty --directory '$WORKSPACE_DIR' uv run mitmproxy -s mitmproxy-tools/token_harvester.py"
+CMD_MAP["[PENTEST] 🌐 mitmweb — Web GUI proxy analyzer (:8081 -> :8080)"]="kitty --directory '$WORKSPACE_DIR' rf-lab mitm web"
+CMD_MAP["[PENTEST] 📂 rf-lab findings — Inspect captured PCAPs, hashes & reports"]="kitty --hold rf-lab findings"
+
+# -----------------------------------------------------------------------------
+# Audio & Output Management
+# -----------------------------------------------------------------------------
+CMD_MAP["[AUDIO] audio-switch — Output selector (Q1 DAC, JBL, Laptop)"]="/home/ebaymlay/.local/bin/audio-switch"
+CMD_MAP["[AUDIO] q1-mode music — Force FiiO Q1 DAC into A2DP SBC-XQ"]="bash -c '/home/ebaymlay/.local/bin/q1-mode music && notify-send -i audio-card \"Audio\" \"Q1 set to Music (A2DP SBC-XQ)\"'"
+CMD_MAP["[AUDIO] audio-restart — Restart PipeWire & WirePlumber"]="bash -c 'systemctl --user restart pipewire pipewire-pulse wireplumber && notify-send -i audio-card \"Audio\" \"Restarted PipeWire audio services\"'"
+
+# -----------------------------------------------------------------------------
+# System, UI & Screensaver
+# -----------------------------------------------------------------------------
+CMD_MAP["[SYS] throttled-status — Dell 7490 25W Thermal Override"]="kitty --hold systemctl status throttled --no-pager"
+CMD_MAP["[DEV] lg — Lazygit TUI with Delta pager"]="kitty --directory '$WORKSPACE_DIR' lazygit"
+CMD_MAP["[DEV] venv — Open workspace terminal with venv"]="kitty --directory '$WORKSPACE_DIR' bash -i -c 'venv; exec bash'"
+CMD_MAP["[KB] ai-notes — Open Obsidian AI Knowledge Base"]="obsidian"
+CMD_MAP["[KB] ai-log — Quick entry into Obsidian Daily Digest"]="kitty --title 'Obsidian Daily Note' bash -c 'read -e -p \"Daily note: \" note; [[ -n \"\$note\" ]] && source ~/.bashrc && ai-log \"\$note\" && notify-send -i document-save \"Obsidian\" \"Saved daily log: \$note\"'"
+CMD_MAP["[UI] screensaver — Fluid & Cyber Screensaver (Kiosk)"]="screensaver"
+CMD_MAP["[UI] screensaver-preview — Preview screensaver in window"]="screensaver --preview"
+CMD_MAP["[UI] ps2-startup — Play PlayStation 2 XFCE Startup Video"]="ps2-startup"
+CMD_MAP["[UI] ps2-startup-window — Preview PS2 Startup in Window"]="ps2-startup --window"
+CMD_MAP["[UI] xfce-launcher-toggle — Toggle macOS Launchpad (Super Key)"]="/usr/local/bin/xfce-launcher-toggle"
+
+# -----------------------------------------------------------------------------
+# Build Menu & Execute
+# -----------------------------------------------------------------------------
+REMAINDER=()
+for k in "${!CMD_MAP[@]}"; do
+    if [[ "$k" != "$SWITCH_KEY" ]]; then
+        REMAINDER+=("$k")
+    fi
+done
+mapfile -t SORTED_REMAINDER < <(printf "%s\n" "${REMAINDER[@]}" | sort)
+
+MENU_ITEMS="${SWITCH_KEY}"$'\n'$(printf "%s\n" "${SORTED_REMAINDER[@]}")
+
+# Launch Rofi with active theme
+ROFI_ARGS=(-dmenu -i -p "$PROMPT" -lines 14 -width 75)
+if [[ -f "$THEME_FILE" ]]; then
+    ROFI_ARGS+=(-theme "$THEME_FILE")
+fi
+
+CHOICE=$(printf "%s" "$MENU_ITEMS" | rofi "${ROFI_ARGS[@]}")
+
+if [[ -n "$CHOICE" ]]; then
+    if [[ -n "${CMD_MAP[$CHOICE]:-}" ]]; then
+        ACTION="${CMD_MAP[$CHOICE]}"
+        setsid -f bash -c "$ACTION" >/dev/null 2>&1
+    else
+        # Direct Prompt Fire: User typed a custom prompt instead of choosing an entry
+        CLEAN_PROMPT=$(printf "%s" "$CHOICE" | sed 's/^[ \t]*//;s/[ \t]*$//')
+        if [[ -n "$CLEAN_PROMPT" ]]; then
+            setsid -f kitty --title "LLM Prompt: $CLEAN_PROMPT" bash -c "
+                source ~/.bashrc 2>/dev/null || true
+                echo -e '\033[1;36m=== Direct LLM Prompt ===\033[0m'
+                echo -e '\033[1;33mPrompt:\033[0m $CLEAN_PROMPT'
+                echo
+                if command -v ask-qwen >/dev/null 2>&1; then
+                    ask-qwen \"$CLEAN_PROMPT\"
+                else
+                    ollama run qwen2.5-coder \"$CLEAN_PROMPT\"
+                fi
+                echo
+                read -p 'Press enter to close...'
+            " >/dev/null 2>&1
+        fi
+    fi
+fi

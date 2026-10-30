@@ -1,0 +1,31 @@
+#!/bin/bash
+# NetworkManager dispatcher hook: refuse DNS servers pushed by DHCP / IPv6 RA on
+# every Wi-Fi and wired connection, so systemd-resolved only ever uses the
+# global Quad9 DNS-over-TLS servers from /etc/systemd/resolved.conf.d/quad9-dot.conf.
+# New networks are locked the first time they come up.
+#
+# Installed to /etc/NetworkManager/dispatcher.d/10-dns-lock by install-dns-lock.sh
+
+IFACE="$1"
+ACTION="$2"
+
+case "$ACTION" in
+    up|dhcp4-change|dhcp6-change) ;;
+    *) exit 0 ;;
+esac
+[ -n "$CONNECTION_UUID" ] || exit 0
+
+case "$(nmcli -g connection.type connection show "$CONNECTION_UUID" 2>/dev/null)" in
+    802-11-wireless|802-3-ethernet) ;;
+    *) exit 0 ;;
+esac
+
+v4=$(nmcli -g ipv4.ignore-auto-dns connection show "$CONNECTION_UUID")
+v6=$(nmcli -g ipv6.ignore-auto-dns connection show "$CONNECTION_UUID")
+[ "$v4" = yes ] && [ "$v6" = yes ] && exit 0
+
+nmcli connection modify "$CONNECTION_UUID" \
+    ipv4.ignore-auto-dns yes ipv6.ignore-auto-dns yes connection.dns-over-tls yes
+# Reapply outside the dispatcher run so NM isn't waiting on this script
+setsid -f nmcli device reapply "$IFACE" >/dev/null 2>&1
+logger -t dns-lock "stripped DHCP/RA DNS from '${CONNECTION_ID}' on $IFACE"
